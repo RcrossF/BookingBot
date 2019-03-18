@@ -34,6 +34,7 @@ def scrape():
     for tag in hr_elements:
         if "edit_entry.php?" in tag:    print(tag)
         
+        
 
 
     col=[]
