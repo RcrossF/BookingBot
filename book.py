@@ -26,9 +26,17 @@ def scrape():
 
 
     tr_elements = doc.xpath('//tr')
-    col=[]
-    
+    hr_elements = doc.xpath('//@href')
 
+
+    hr_elements[:] = [tag for tag in hr_elements if "edit_entry.php?" in tag] # Filter everything that isn't an edit_entry link
+
+    for tag in hr_elements:
+        if "edit_entry.php?" in tag:    print(tag)
+        
+
+
+    col=[]
     for i in range(1, len(tr_elements)):
         j=0
         elem = tr_elements[i][0].text_content()
@@ -41,8 +49,8 @@ def scrape():
 
         for t in tr_elements[i]:
             name=t.text_content()
-            room = t.xpath('//@href').split('&')[1] #FIX THIS
-            #room = "a"
+            
+            room = "a"
             if name =="\n<!--\nBeginActiveCell();\n// -->\n\n<!--\nEndActiveCell();\n// -->\n": col.append(dict(hr=hour,min=minute,room=room,row=i,col=j)) #Only append free rooms
             j+=1
                     
@@ -50,7 +58,7 @@ def scrape():
 
 
 def book(good):
-    url = urlBase + "edit_entry.php?day={0}&month={1}&year={2}&area={3}".format(day,month,year,area)
+    url = urlBase + "edit_entry.php?day={0}&month={1}&year={2}&room={3]".format(day,month,year,room)
 
 available = scrape()
 good = []
@@ -64,4 +72,4 @@ for a in available:
      elif int(a['hr']) == endHour and int(a['min']) <= endMin:
         good.append(a)
 
-print(good)
+#print(good)
