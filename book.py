@@ -58,12 +58,20 @@ def scrape():
     return col
 
 
-def book(good):
-    url = urlBase + "edit_entry.php?day={0}&month={1}&year={2}&room={3]".format(day,month,year,room)
+#Books a slot for the given time(String. Possible values: 30min, 1hr, 90min, 2hr), good luck testing this before uvic rate limits you
+def book(slot, period):
+    url = urlBase + "edit_entry.php?day={0}&month={1}&year={2}&room={3}".format(day,month,year,room)
+    values = {'name' : 'Literature Lads',
+      'duration' : period,
+      'netlinkid' : '**USERNAME**', 
+      'netlinkpw' : '**PASSWORD**'}
+
+    response = requests.post(url,values)
+    #Idk what to do next I haven't tested this and I'm going to sleep. It probably works
 
 available = scrape()
 good = []
-for a in available:
+for a in available: # Filter rooms by times we want
      if (startHour < int(a['hr']) < endHour):
          good.append(a)
 
