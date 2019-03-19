@@ -4,14 +4,11 @@ import sys
 import lxml.html as lh
 import datetime as dt
 
-
+#constants
 urlBase = "https://webapp.library.uvic.ca/studyrooms/"
 header={'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0'}
-startHour = 11
-startMin = 00
-endHour = 13
-endMin = 30
 roompref = [15,14,13,12,16,11,10,9,8]
+
 try:
     with open('login.json') as f:
         login = json.load(f)
@@ -22,7 +19,7 @@ except:
 
 
 #Scrapes the Uvic url provided and returns an array of dictionaries containing cells that are available for booking(because of the headers row and col indexing starts at 1)
-def scrape():      
+def scrape(day,month,year,area):      
     page = requests.get(urlBase + "day.php?day={0}&month={1}&year={2}&area={3}".format(day,month,year,area), headers=header)
     doc = lh.fromstring(page.content)
     for T in doc.xpath('//tr'):
@@ -143,13 +140,13 @@ def convertDuration(itm):
     else:
         return "Invalid Number"
 
-def attemptBook(delta):
-    today = dt.date.today() + dt.timedelta(days=delta) #Get however many days in the future
-    year = today.year
-    month = today.month
-    day = today.day
+def attemptBook(delta,startHour,startMin,endHour,endMin):
+    date = dt.date.today() + dt.timedelta(days=delta) #Get however many days in the future
+    year = date.year
+    month = date.month
+    day = date.day
     area = 1
-    available = scrape()
+    available = scrape(day,month,year,area)
     good = []
     for a in available: # Filter rooms by times we want
         if (startHour < int(a['hr']) < endHour):
@@ -172,5 +169,8 @@ def attemptBook(delta):
 
     good = sorted(good, key=lambda val:(-val['duration'], SORT_ORDER.get(str(val['room'])))) #This took ages please be proud. Sorts rooms based on duration then roompref. Way overkill but some of the rooms are bad and I don't want them
 
-    book(good[0],convertDuration(good[0]['duration']))
-    print("Booked room {0} for {1} starting at {2}:{3}".format(good[0]['room'],convertDuration(good[0]['duration']),good[0]['hr'],good[0]['min']))
+    if good: 
+        book(good[0],convertDuration(good[0]['duration']))
+    else:
+        return "No rooms found"
+    return("Booked room {0} for {1} starting at {2}:{3}".format(good[0]['room'],convertDuration(good[0]['duration']),good[0]['hr'],good[0]['min']))

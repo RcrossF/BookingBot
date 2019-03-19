@@ -47,13 +47,26 @@ def handle_command(command, channel):
         Executes bot command if the command is known
     """
     # Default response is help text for the user
-    default_response = "Not sure what you mean. Try *{}*.".format(EXAMPLE_COMMAND)
+    default_response = "Not sure what you mean. Try *{}*.".format(BOOK_COMMAND)
 
     # Finds and executes the given command, filling in response
     response = None
     # This is where you start to implement more commands!
-    if command.startswith(EXAMPLE_COMMAND):
-        response = attemptBook
+    if command.startswith(BOOK_COMMAND):
+        startHour = int(command.split(' ')[1].rpartition(':')[0])
+        startMin = int(command.split(' ')[1].rpartition(':')[2])
+
+        endHour = int(command.split(' ')[2].rpartition(':')[0])
+        endMin = int(command.split(' ')[2].rpartition(':')[2])
+
+        if command.split(' ')[3].lower() == 'today':
+            delta = 0
+        elif command.split(' ')[3].lower() == 'tomorrow':
+            delta = 1
+        else:
+            delta = int(command.split(' ')[3])
+        response = book.attemptBook(delta, startHour, startMin, endHour, endMin)    
+       #response = "{0}:{1} until {2}:{3}".format(startHour, startMin, endHour, endMin)
 
     # Sends the response back to the channel
     slack_client.api_call(
