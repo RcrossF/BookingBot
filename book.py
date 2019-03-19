@@ -1,25 +1,29 @@
 import requests
+import json
+import sys
 import lxml.html as lh
 from lxml import etree
-import datetime
+from datetime import datetime as dt
 
-year = 2019
-month = 3
-day = 20
+year = dt.now().year
+month = dt.now().month
+day = dt.now().day + 1
 area = 1
 urlBase = "https://webapp.library.uvic.ca/studyrooms/"
+header={'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0'}
 startHour = 11
 startMin = 30
 endHour = 13
 endMin = 30
-
-#print(url + "day={0}&month={1}&year={2}&area={3}".format(day,month,year,area))
-
-
-
+roompref = []
+try:
+    login = json.load("/login.json")
+except:
+    print("Error loading file")
+    sys.exit()
 #Scrapes the Uvic url provided and returns an array of dictionaries containing cells that are available for booking(because of the headers row and col indexing starts at 1)
 def scrape():      
-    page = requests.get(urlBase + "day.php?day={0}&month={1}&year={2}&area={3}".format(day,month,year,area))
+    page = requests.get(urlBase + "day.php?day={0}&month={1}&year={2}&area={3}".format(day,month,year,area), headers=header)
     doc = lh.fromstring(page.content)
     for T in doc.xpath('//tr'):
         if (len(T)!=10): T.getparent().remove(T)    #Uvic uses tables for other parts of the site so filter them
@@ -60,14 +64,24 @@ def scrape():
 
 #Books a slot for the given time(String. Possible values: 30min, 1hr, 90min, 2hr), good luck testing this before uvic rate limits you
 def book(slot, period):
-    url = urlBase + "edit_entry.php?day={0}&month={1}&year={2}&room={3}".format(day,month,year,room)
-    values = {'name' : 'Literature Lads',
-      'duration' : period,
-      'netlinkid' : '**USERNAME**', 
-      'netlinkpw' : '**PASSWORD**'}
+   # url = urlBase + "edit_entry_handler.php?day={0}&month={1}&year={2}&room={3}&hour={4}&minute={5}".format(day,month,year,slot['room'],slot['hr'],slot['min'])
+    url = urlBase + "edit_entry_handler.php"
+    values = {'day': day,
+            'month': month,
+            'year': year,
+            'name':'StudyBois',
+            'hour':slot['hr'],
+            'minute':slot['min'],
+            'duration': period,
+            'netlinkid':login['username'],
+            'netlinkpw':login['password'],
+            'returl':'',
+            'room_id':slot['room'],
+            'create_by':''} #https://github.com/SavioAlp for the correct post data
 
-    response = requests.post(url,values)
-    #Idk what to do next I haven't tested this and I'm going to sleep. It probably works
+    response = requests.post(url,values,headers=header)
+    print(response.content)
+
 
 available = scrape()
 good = []
@@ -81,4 +95,7 @@ for a in available: # Filter rooms by times we want
      elif int(a['hr']) == endHour and int(a['min']) <= endMin:
         good.append(a)
         
-print(good)
+#print(good)
+
+
+book(good[0],"30min")
