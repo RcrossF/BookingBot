@@ -5,7 +5,7 @@ import lxml.html as lh
 from lxml import etree
 import datetime as dt
 
-today = dt.date.today() + dt.timedelta(days=2) #Get 1 week in the future
+today = dt.date.today() + dt.timedelta(days=3) #Get however many days in the future
 year = today.year
 month = today.month
 day = today.day
@@ -83,6 +83,7 @@ def book(slot, period):
             'create_by':''} #https://github.com/SavioAlp for the correct post data
 
     response = requests.post(url,values,headers=header)
+    print(response.content)
 
 #Sorts a list by room #, hr, and min so they can be dealt with nicely
 def sortList(list):
@@ -134,6 +135,18 @@ def fixTime(list):
                 
     return list
 
+#Convert integer durations to what uvic uses(30m,1h,90m,2h)
+def convertDuration(itm):
+    if itm == 30:
+        return "30min"
+    elif itm == 60:
+        return "1hr"
+    elif itm == 90:
+        return "90min"
+    elif itm == 120:
+        return "2hr"
+    else:
+        return "Invalid Number"
 
 available = scrape()
 good = []
@@ -152,23 +165,13 @@ good = merge(good)
 #Now the times are the ends of the slots, fix this with fixTime
 good = fixTime(good)
 
+SORT_ORDER = {} #Dict to store custom room priority(eg. room 15 gets 1st priority)
+for i in range(len(roompref)):
+    SORT_ORDER[str(roompref[i])] = i
+
+good = sorted(good, key=lambda val:(-val['duration'], SORT_ORDER.get(str(val['room'])))) #This took ages please be proud. Sorts rooms based on duration then roompref. Way overkill but some of the rooms are bad and I don't want them
+
 i=0
 j=0
-while(True): #Book better rooms first
-    if(good[i]['room'] < roompref[j]):
-        if i == len(good)-1:
-            print("Room {0} full, trying room {1}".format(roompref[j],roompref[j+1]))
-            i=0
-            j+=1
-            continue
-        else:   
-            i+=1
-            continue
-    elif(good[i]['room'] == roompref[j]):
-        #book(good[i],'30min')
-        print("Booked room {0} for {1} mins".format(good[i]['room'],good[i]['duration']))
-        break
-
-
-#if good:    book(good[0],"30min")
-#else:   print("No rooms")
+book(good[0],convertDuration(good[0]['duration']))
+print("Booked room {0} for {1} starting at {2}:{3}".format(good[0]['room'],convertDuration(good[0]['duration']),good[0]['hr'],good[0]['min']))
