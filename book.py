@@ -21,6 +21,7 @@ try:
 except:
     print("Error loading file")
     sys.exit()
+
 #Scrapes the Uvic url provided and returns an array of dictionaries containing cells that are available for booking(because of the headers row and col indexing starts at 1)
 def scrape():      
     page = requests.get(urlBase + "day.php?day={0}&month={1}&year={2}&area={3}".format(day,month,year,area), headers=header)
