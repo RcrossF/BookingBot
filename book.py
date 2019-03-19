@@ -5,7 +5,7 @@ import lxml.html as lh
 from lxml import etree
 import datetime as dt
 
-today = dt.date.today() + dt.timedelta(days=7) #Get 1 week in the future
+today = dt.date.today() + dt.timedelta(days=2) #Get 1 week in the future
 year = today.year
 month = today.month
 day = today.day
@@ -49,24 +49,19 @@ def scrape():
         elem = tr_elements[i][0].text_content()
         holder = tr_elements[i][0].text_content().rpartition(':')[0]
 
-        #if time[len(time)-2] == "a": hour = holder
         if elem[len(elem)-2] == "p" and int(holder) != 12: hour = int(holder) + 12 #Convert to 24h time
         else: hour = holder
-        minute = elem.rpartition(':')[2].rpartition(' ')[0] #I know the 2 rpartitions are horrible but it works
+        minute = elem.rpartition(':')[2].rpartition(' ')[0] #The 2 rpartitions are horrible but it works
 
-        for t in tr_elements[i]:
+        for t in tr_elements[i]: #Step through all table rows getting info
             name=t.text_content()
             
             room = hr_elements[totalIterator].split('&')[1].rpartition('=')[2] #Get room # from disgusting bunch of stuff we don't want
             if name =="\n<!--\nBeginActiveCell();\n// -->\n\n<!--\nEndActiveCell();\n// -->\n": 
-                col.append(dict(hr=hour,min=minute,room=room,row=i,col=j)) #Only append free rooms
+                col.append(dict(hr=int(hour),min=int(minute),room=int(room),row=i,col=j,duration=30)) #Only append free rooms
                 totalIterator+=1
             j+=1
-            
-        for item in col: #convert data to ints so they can be sorted
-            item['hr'] = int(item['hr'])
-            item['min'] = int(item['min'])  
-            item['room'] = int(item['room'])        
+
     return col
 
 
@@ -89,8 +84,56 @@ def book(slot, period):
 
     response = requests.post(url,values,headers=header)
 
-def sortList(list,reverse):
-    return sorted(good, key=lambda k: k['room'], reverse=reverse)
+#Sorts a list by room #, hr, and min so they can be dealt with nicely
+def sortList(list):
+    return sorted(list, key=lambda k: (k['room'], k['hr'], k['min']))
+
+#Merges back to back time slots up to 2h
+def merge(list):
+    i=0
+    while i<len(list)-1:
+        if i == len(list)-1:
+            break
+        elif ((list[i]['hr'] == list[i+1]['hr']) and list[i]['room'] == list[i+1]['room']): #If same hour, minute changes by 30
+            if list[i]['duration'] < 120: #Max out slots at 2h
+                list[i]['duration'] += 30
+                list[i]['min'] = 30
+                list.remove(list[i+1]) #Remove entry that was merged
+
+        elif ((list[i]['hr'] == list[i+1]['hr'] - 1) and list[i]['room'] == list[i+1]['room']):
+            if list[i]['duration'] < 120: #Max out slots at 2h
+                list[i]['duration'] += 30
+                list[i]['hr'] += 1
+                list[i]['min'] = 0
+                list.remove(list[i+1]) #Remove entry that was merged
+        else:   
+            i+=1
+    return list
+
+#Undo the magic done by merge()
+def fixTime(list):
+    toedit = [item for item in list if item['duration'] != 30]
+    for item in toedit:
+        if item['duration'] == 60:
+            if item['min'] == 30:
+                item['min'] -= 30
+            else:
+                item['hr'] -= 1
+                item['min'] += 30
+
+        elif item['duration'] == 90:
+            item['hr'] -= 1
+        
+        elif item['duration'] == 120:
+            item['hr'] -= 1
+            if item['min'] == 30:
+                item['min'] -= 30
+            else:
+                item['hr'] -= 1
+                item['min'] += 30
+                
+    return list
+
 
 available = scrape()
 good = []
@@ -104,9 +147,10 @@ for a in available: # Filter rooms by times we want
      elif int(a['hr']) == endHour and int(a['min']) <= endMin:
         good.append(a)
 
-
-
-good = sortList(good,True)
+good = sortList(good)
+good = merge(good)
+#Now the times are the ends of the slots, fix this with fixTime
+good = fixTime(good)
 
 i=0
 j=0
@@ -122,8 +166,9 @@ while(True): #Book better rooms first
             continue
     elif(good[i]['room'] == roompref[j]):
         #book(good[i],'30min')
-        print("Booked room {0}".format(good[i]['room']))
+        print("Booked room {0} for {1} mins".format(good[i]['room'],good[i]['duration']))
         break
+
 
 #if good:    book(good[0],"30min")
 #else:   print("No rooms")
