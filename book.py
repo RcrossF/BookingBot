@@ -83,7 +83,7 @@ def book(slot, period):
             'create_by':''} #https://github.com/SavioAlp for the correct post data
 
     response = requests.post(url,values,headers=header)
-    print(response.content)
+    #print(response.content)
 
 #Sorts a list by room #, hr, and min so they can be dealt with nicely
 def sortList(list):
