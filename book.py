@@ -2,10 +2,9 @@ import requests
 import json
 import sys
 import lxml.html as lh
-from lxml import etree
 import datetime as dt
 
-today = dt.date.today() + dt.timedelta(days=3) #Get however many days in the future
+today = dt.date.today() + dt.timedelta(days=7) #Get however many days in the future
 year = today.year
 month = today.month
 day = today.day
