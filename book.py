@@ -4,11 +4,7 @@ import sys
 import lxml.html as lh
 import datetime as dt
 
-today = dt.date.today() + dt.timedelta(days=7) #Get however many days in the future
-year = today.year
-month = today.month
-day = today.day
-area = 1
+
 urlBase = "https://webapp.library.uvic.ca/studyrooms/"
 header={'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0'}
 startHour = 11
@@ -147,30 +143,34 @@ def convertDuration(itm):
     else:
         return "Invalid Number"
 
-available = scrape()
-good = []
-for a in available: # Filter rooms by times we want
-     if (startHour < int(a['hr']) < endHour):
-         good.append(a)
+def attemptBook(delta):
+    today = dt.date.today() + dt.timedelta(days=delta) #Get however many days in the future
+    year = today.year
+    month = today.month
+    day = today.day
+    area = 1
+    available = scrape()
+    good = []
+    for a in available: # Filter rooms by times we want
+        if (startHour < int(a['hr']) < endHour):
+            good.append(a)
 
-     elif int(a['hr']) == startHour and int(a['min']) >= startMin:
-         good.append(a)
+        elif int(a['hr']) == startHour and int(a['min']) >= startMin:
+            good.append(a)
 
-     elif int(a['hr']) == endHour and int(a['min']) <= endMin:
-        good.append(a)
+        elif int(a['hr']) == endHour and int(a['min']) <= endMin:
+            good.append(a)
 
-good = sortList(good)
-good = merge(good)
-#Now the times are the ends of the slots, fix this with fixTime
-good = fixTime(good)
+    good = sortList(good)
+    good = merge(good)
+    #Now the times are the ends of the slots, fix this with fixTime
+    good = fixTime(good)
 
-SORT_ORDER = {} #Dict to store custom room priority(eg. room 15 gets 1st priority)
-for i in range(len(roompref)):
-    SORT_ORDER[str(roompref[i])] = i
+    SORT_ORDER = {} #Dict to store custom room priority(eg. room 15 gets 1st priority)
+    for i in range(len(roompref)):
+        SORT_ORDER[str(roompref[i])] = i
 
-good = sorted(good, key=lambda val:(-val['duration'], SORT_ORDER.get(str(val['room'])))) #This took ages please be proud. Sorts rooms based on duration then roompref. Way overkill but some of the rooms are bad and I don't want them
+    good = sorted(good, key=lambda val:(-val['duration'], SORT_ORDER.get(str(val['room'])))) #This took ages please be proud. Sorts rooms based on duration then roompref. Way overkill but some of the rooms are bad and I don't want them
 
-i=0
-j=0
-book(good[0],convertDuration(good[0]['duration']))
-print("Booked room {0} for {1} starting at {2}:{3}".format(good[0]['room'],convertDuration(good[0]['duration']),good[0]['hr'],good[0]['min']))
+    book(good[0],convertDuration(good[0]['duration']))
+    print("Booked room {0} for {1} starting at {2}:{3}".format(good[0]['room'],convertDuration(good[0]['duration']),good[0]['hr'],good[0]['min']))
