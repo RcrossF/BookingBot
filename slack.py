@@ -4,7 +4,9 @@ import time
 import re
 import json
 import book
+import traceback
 from slackclient import SlackClient
+roompref = [15,14,13,12,16,11,10,9,8]
 
 try:
     with open('slack.json') as f:
@@ -47,26 +49,40 @@ def handle_command(command, channel):
         Executes bot command if the command is known
     """
     # Default response is help text for the user
-    default_response = "Not sure what you mean. Try *{}*.".format(BOOK_COMMAND)
+    default_response = "Not sure what you mean. Try *{}* startHour:startMin endHour:endMin #days in the future.".format(BOOK_COMMAND)
 
     # Finds and executes the given command, filling in response
     response = None
     # This is where you start to implement more commands!
     if command.startswith(BOOK_COMMAND):
-        startHour = int(command.split(' ')[1].rpartition(':')[0])
-        startMin = int(command.split(' ')[1].rpartition(':')[2])
+        try:
+            startHour = int(command.split(' ')[1].rpartition(':')[0])
+            startMin = int(command.split(' ')[1].rpartition(':')[2])
+            endHour = int(command.split(' ')[2].rpartition(':')[0])
+            endMin = int(command.split(' ')[2].rpartition(':')[2])
 
-        endHour = int(command.split(' ')[2].rpartition(':')[0])
-        endMin = int(command.split(' ')[2].rpartition(':')[2])
+            try:
+                if command.split(' ')[3].lower() == 'today':
+                    delta = 0
+                elif command.split(' ')[3].lower() == 'tomorrow':
+                    delta = 1
+                else:
+                    delta = int(command.split(' ')[3])  
+            except IndexError: #Make delta optional and use today if not provided
+                delta = 0
 
-        if command.split(' ')[3].lower() == 'today':
-            delta = 0
-        elif command.split(' ')[3].lower() == 'tomorrow':
-            delta = 1
-        else:
-            delta = int(command.split(' ')[3])
-        response = book.attemptBook(delta, startHour, startMin, endHour, endMin)    
-       #response = "{0}:{1} until {2}:{3}".format(startHour, startMin, endHour, endMin)
+            for i in range(1,4): # Run through all the floors
+                result = book.scrapeAndBook(delta,startHour,startMin,endHour,endMin,i,roompref)
+                if result == "No rooms found":
+                    continue
+                else:
+                    response = result
+                    break
+            #having response = "No rooms found" at the end of the for loop wasn't working for some reason so here's the solution
+            if not response:
+                response = "No rooms found"
+        except:
+            response = "Error, try something else"
 
     # Sends the response back to the channel
     slack_client.api_call(
