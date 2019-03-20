@@ -194,7 +194,7 @@ def scrapeAndBook(delta,startHour,startMin,endHour,endMin,area,roompref):
     if good: 
         response = book(day,month,year,good[0],convertDuration(good[0]['duration']))
         if 'You are not permitted to make bookings that total more than 2 hours in a single day.' in response.text:
-            return "2hr already booked today"
+            return "2hr already booked on {0} {1}".format(date.strftime('%B'),day)
         elif "Invalid ID or password." in response.text:
             return "Invalid ID or password"
     else:
