@@ -27,7 +27,7 @@ elif today.weekday() == 4: #Fri
 else:
     sys.exit(0)
 
-for i in range(1,4): # Run through all the floors
+for i in range(1,4): # Run through all the floors but 4, it breaks everything because it is missing a href tag somewhere
     result = book.scrapeAndBook(1,startHour,startMin,endHour,endMin,i,roompref)
     if result == "No rooms found":
         continue
