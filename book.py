@@ -7,7 +7,6 @@ import datetime as dt
 #constants
 urlBase = "https://webapp.library.uvic.ca/studyrooms/"
 header={'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0'}
-roompref = [15,14,13,12,16,11,10,9,8]
 
 try:
     with open('login.json') as f:
@@ -22,8 +21,16 @@ except:
 def scrape(day,month,year,area):      
     page = requests.get(urlBase + "day.php?day={0}&month={1}&year={2}&area={3}".format(day,month,year,area), headers=header)
     doc = lh.fromstring(page.content)
+    if area == 1:
+        columns = 10
+    elif area == 2:
+        columns = 5
+    elif area == 4:
+        columns = 4
+    else:   
+         columns = 10
     for T in doc.xpath('//tr'):
-        if (len(T)!=10): T.getparent().remove(T)    #Uvic uses tables for other parts of the site so filter them
+        if (len(T)!=columns): T.getparent().remove(T)    #Uvic uses tables for other parts of the site so filter them
 
 
     tr_elements = doc.xpath('//tr')
@@ -48,7 +55,7 @@ def scrape(day,month,year,area):
         for t in tr_elements[i]: #Step through all table rows getting info
             name=t.text_content()
             
-            room = hr_elements[totalIterator].split('&')[1].rpartition('=')[2] #Get room # from disgusting bunch of stuff we don't want
+            room = hr_elements[totalIterator].split('&')[1].rpartition('=')[2] #Get room # from a bunch of other stuff we don't want
             if name =="\n<!--\nBeginActiveCell();\n// -->\n\n<!--\nEndActiveCell();\n// -->\n": 
                 col.append(dict(hr=int(hour),min=int(minute),room=int(room),row=i,col=j,duration=30)) #Only append free rooms
                 totalIterator+=1
@@ -58,7 +65,7 @@ def scrape(day,month,year,area):
 
 
 #Books a slot for the given time period(String, Possible values: 30min, 1hr, 90min, 2hr). Slot is a dict of the available room
-def book(slot, period):
+def book(day,month,year,slot, period):
    # url = urlBase + "edit_entry_handler.php?day={0}&month={1}&year={2}&room={3}&hour={4}&minute={5}".format(day,month,year,slot['room'],slot['hr'],slot['min'])
     url = urlBase + "edit_entry_handler.php"
     values = {'day': day,
@@ -74,8 +81,7 @@ def book(slot, period):
             'room_id':slot['room'],
             'create_by':''} #https://github.com/SavioAlp for the correct post data
 
-    response = requests.post(url,values,headers=header)
-    #print(response.content)
+    return requests.post(url,values,headers=header)
 
 #Sorts a list by room #, hr, and min so they can be dealt with nicely
 def sortList(list):
@@ -140,12 +146,28 @@ def convertDuration(itm):
     else:
         return "Invalid Number"
 
-def attemptBook(delta,startHour,startMin,endHour,endMin):
+def scrapeAndBook(delta,startHour,startMin,endHour,endMin,area,roompref):
+    roomName = {1:'223(2nd Floor)', 
+           3:'270(2nd Floor)', 
+           4:'272(2nd Floor)', 
+           5:'274(2nd Floor)', 
+           8:'113a(1st Floor)', 
+           9:'113b(1st Floor)', 
+           10:'113c(1st Floor)', 
+           11:'113d(1st Floor)',  
+           12:'A103(1st Floor)',
+           13:'A105(1st Floor)',
+           14:'A107(1st Floor)',
+           15:'A109(1st Floor)',
+           16:'131(1st Floor)',
+           22:'050a(Basement)',
+           23:'050b(Basement)',
+           24:'050c(Basement)'}
+
     date = dt.date.today() + dt.timedelta(days=delta) #Get however many days in the future
     year = date.year
     month = date.month
     day = date.day
-    area = 1
     available = scrape(day,month,year,area)
     good = []
     for a in available: # Filter rooms by times we want
@@ -155,7 +177,7 @@ def attemptBook(delta,startHour,startMin,endHour,endMin):
         elif int(a['hr']) == startHour and int(a['min']) >= startMin:
             good.append(a)
 
-        elif int(a['hr']) == endHour and int(a['min']) <= endMin:
+        elif int(a['hr']) == endHour and int(a['min']) < endMin:
             good.append(a)
 
     good = sortList(good)
@@ -170,7 +192,12 @@ def attemptBook(delta,startHour,startMin,endHour,endMin):
     good = sorted(good, key=lambda val:(-val['duration'], SORT_ORDER.get(str(val['room'])))) #This took ages please be proud. Sorts rooms based on duration then roompref. Way overkill but some of the rooms are bad and I don't want them
 
     if good: 
-        book(good[0],convertDuration(good[0]['duration']))
+        response = book(day,month,year,good[0],convertDuration(good[0]['duration']))
+        if 'You are not permitted to make bookings that total more than 2 hours in a single day.' in response.text:
+            return "2hr already booked today"
+        elif "Invalid ID or password." in response.text:
+            return "Invalid ID or password"
     else:
         return "No rooms found"
-    return("Booked room {0} for {1} starting at {2}:{3}".format(good[0]['room'],convertDuration(good[0]['duration']),good[0]['hr'],good[0]['min']))
+        
+    return("Booked room {0} for {1} starting at {2}:{3}0 on {4} {5}".format(roomName.get(good[0]['room']),convertDuration(good[0]['duration']),good[0]['hr'],str(good[0]['min'])[0],date.strftime('%B'),day))   
