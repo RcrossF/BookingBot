@@ -81,8 +81,9 @@ def handle_command(command, channel):
             #having response = "No rooms found" at the end of the for loop wasn't working for some reason so here's the solution
             if not response:
                 response = "No rooms found"
-        except:
-            response = "Error, try something else"
+        except Exception as e:
+             response = "Error, try something else"
+             print(e)
 
     # Sends the response back to the channel
     slack_client.api_call(
