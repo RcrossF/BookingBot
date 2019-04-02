@@ -54,7 +54,7 @@ def scrape(day,month,year,area):
 
         for t in tr_elements[i]: #Step through all table rows getting info
             name=t.text_content()
-            if len(hr_elements) < totalIterator:
+            if len(hr_elements) > totalIterator:
                 room = hr_elements[totalIterator].split('&')[1].rpartition('=')[2] #Get room # from a bunch of other stuff we don't want
                 if name =="\n<!--\nBeginActiveCell();\n// -->\n\n<!--\nEndActiveCell();\n// -->\n": 
                     col.append(dict(hr=int(hour),min=int(minute),room=int(room),row=i,col=j,duration=30)) #Only append free rooms
