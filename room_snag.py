@@ -29,10 +29,10 @@ else:
 
 for i in range(1,5): # Run through all the floors but 4, it breaks everything because it is missing a href tag somewhere
     result = book.scrapeAndBook(7,startHour,startMin,endHour,endMin,i,roompref)
-    if i == 4:
-        print("Nothing Found")
 
     if result == "No rooms found":
+        if i == 4: #If we're on the last floor and nothing was found
+            print("Nothing Found")
         continue
     else:
         print(result)
