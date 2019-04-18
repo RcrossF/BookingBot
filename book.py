@@ -12,7 +12,7 @@ try:
     with open('login.json') as f:
         login = json.load(f)
 except:
-    print("Error loading file")
+    print("Error loading login.json")
     sys.exit(0)
 
 
@@ -48,7 +48,7 @@ def scrape(day,month,year,area):
         elem = tr_elements[i][0].text_content()
         holder = tr_elements[i][0].text_content().rpartition(':')[0]
 
-        if elem[len(elem)-2] == "p" and int(holder) != 12: hour = int(holder) + 12 #Convert to 24h time
+        if ((elem[len(elem)-2] == "p") and (int(holder) != 12)): hour = int(holder) + 12 #Convert to 24h time
         else: hour = holder
         minute = elem.rpartition(':')[2].rpartition(' ')[0] #The 2 rpartitions are horrible but it works
 
@@ -56,8 +56,8 @@ def scrape(day,month,year,area):
             name=t.text_content()
             if len(hr_elements) > totalIterator:
                 room = hr_elements[totalIterator].split('&')[1].rpartition('=')[2] #Get room # from a bunch of other stuff we don't want
-                if name =="\n<!--\nBeginActiveCell();\n// -->\n\n<!--\nEndActiveCell();\n// -->\n": 
-                    col.append(dict(hr=int(hour),min=int(minute),room=int(room),row=i,col=j,duration=30)) #Only append free rooms
+                if name =="\n<!--\nBeginActiveCell();\n// -->\n\n<!--\nEndActiveCell();\n// -->\n": #Only append free rooms
+                    col.append(dict(time=dt.datetime.strptime(str(hour).strip()+":"+str(minute), '%H:%M').time(),room=int(room),duration=30)) 
                     totalIterator+=1
                 j+=1
 
@@ -65,15 +65,14 @@ def scrape(day,month,year,area):
 
 
 #Books a slot for the given time period(String, Possible values: 30min, 1hr, 90min, 2hr). Slot is a dict of the available room
-def book(day,month,year,slot, period):
-   # url = urlBase + "edit_entry_handler.php?day={0}&month={1}&year={2}&room={3}&hour={4}&minute={5}".format(day,month,year,slot['room'],slot['hr'],slot['min'])
+def book(day,month,year,slot,period):
     url = urlBase + "edit_entry_handler.php"
     values = {'day': day,
             'month': month,
             'year': year,
             'name':'Literature Lads',
-            'hour':slot['hr'],
-            'minute':slot['min'],
+            'hour':slot['time'].hour,
+            'minute':slot['time'].minute,
             'duration': period,
             'netlinkid':login['username'],
             'netlinkpw':login['password'],
@@ -83,56 +82,44 @@ def book(day,month,year,slot, period):
 
     return requests.post(url,values,headers=header)
 
-#Sorts a list by room #, hr, and min so they can be dealt with nicely
-def sortList(list):
-    return sorted(list, key=lambda k: (k['room'], k['hr'], k['min']))
-
 #Merges back to back time slots up to 2h
 def merge(list):
     i=0
     while i<len(list)-1:
         if i == len(list)-1:
             break
-        elif ((list[i]['hr'] == list[i+1]['hr']) and list[i]['room'] == list[i+1]['room']): #If same hour, minute changes by 30
+        dur = dt.datetime.combine(dt.date.min, list[i+1]['time']) - dt.datetime.combine(dt.date.min, list[i]['time']) - dt.timedelta(minutes=list[i]['duration'])
+        if (list[i]['room'] == list[i+1]['room'] and divmod(dur.seconds, 60)[0] <= 30): #If the same room and adjacent block merge the two
             if list[i]['duration'] < 120: #Max out slots at 2h
                 list[i]['duration'] += 30
-                list[i]['min'] = 30
-                list.remove(list[i+1]) #Remove entry that was merged
-
-        elif ((list[i]['hr'] == list[i+1]['hr'] - 1) and list[i]['room'] == list[i+1]['room']):
-            if list[i]['duration'] < 120: #Max out slots at 2h
-                list[i]['duration'] += 30
-                list[i]['hr'] += 1
-                list[i]['min'] = 0
                 list.remove(list[i+1]) #Remove entry that was merged
         else:   
             i+=1
     return list
 
-#Undo the magic done by merge()
-def fixTime(list):
-    toedit = [item for item in list if item['duration'] != 30]
-    for item in toedit:
-        if item['duration'] == 60:
-            if item['min'] == 30:
-                item['min'] -= 30
-            else:
-                item['hr'] -= 1
-                item['min'] += 30
 
-        elif item['duration'] == 90:
-            item['hr'] -= 1
-        
-        elif item['duration'] == 120:
-            item['hr'] -= 1
-            if item['min'] == 30:
-                item['min'] -= 30
-            else:
-                item['hr'] -= 1
-                item['min'] += 30
-                
-    return list
+#Does the opposite of fixTime()
+def convertTimeToEnd(list):
+    if list['duration'] == 30:
+        if list['min'] == 0:
+            list['min'] += 30
+        else:
+            list['hr'] += 1
+            list['min'] = 0
+    
+    elif list['duration'] == 60:
+        list['hr'] += 1
 
+    elif list['duration'] == 90:
+        list['hr'] += 1
+        if list['min'] == 0:
+            list['min'] += 30
+        else:
+            list['hr'] += 1
+            list['min'] = 0
+
+    elif list['duration'] == 120:
+        list['hr'] += 2
 #Convert integer durations to what uvic uses(30m,1h,90m,2h)
 def convertDuration(itm):
     if itm == 30:
@@ -146,7 +133,7 @@ def convertDuration(itm):
     else:
         return "Invalid Number"
 
-def scrapeAndBook(delta,startHour,startMin,endHour,endMin,area,roompref):
+def scrapeAndBook(delta,startTime,endTime,area,roompref):
     roomName = {1:'223(2nd Floor)', 
            3:'270(2nd Floor)', 
            4:'272(2nd Floor)', 
@@ -171,25 +158,25 @@ def scrapeAndBook(delta,startHour,startMin,endHour,endMin,area,roompref):
     available = scrape(day,month,year,area)
     good = []
     for a in available: # Filter rooms by times we want
-        if (startHour < int(a['hr']) < endHour):
+        if (startTime <= a['time'] < endTime):
             good.append(a)
 
-        elif int(a['hr']) == startHour and int(a['min']) >= startMin:
-            good.append(a)
+    good = sorted(good, key=lambda k:(k['room'], k['time'])) #Sorts by room #, time so they can be dealt with nicely
 
-        elif int(a['hr']) == endHour and int(a['min']) < endMin:
-            good.append(a)
 
-    good = sortList(good)
+
+
+
+
+
+    #Merge adjacent slots in the same room into up to 2hr long blocks
     good = merge(good)
-    #Now the times are the ends of the slots, fix this with fixTime
-    good = fixTime(good)
 
     SORT_ORDER = {} #Dict to store custom room priority(eg. room 15 gets 1st priority)
     for i in range(len(roompref)):
         SORT_ORDER[str(roompref[i])] = i
 
-    good = sorted(good, key=lambda val:(-val['duration'], SORT_ORDER.get(str(val['room'])))) #This took ages please be proud. Sorts rooms based on duration then roompref. Way overkill but some of the rooms are bad and I don't want them
+    good = sorted(good, key=lambda val:(-val['duration'], SORT_ORDER.get(str(val['room'])))) #This took ages please be proud. Sorts rooms based on duration then roompref. Unnecessary but some of the rooms are bad and I don't want them
 
     if good: 
         response = book(day,month,year,good[0],convertDuration(good[0]['duration']))
@@ -199,5 +186,11 @@ def scrapeAndBook(delta,startHour,startMin,endHour,endMin,area,roompref):
             return "Invalid ID or password"
     else:
         return "No rooms found"
-        
-    return("Booked room {0} for {1} starting at {2}:{3}0 on {4} {5}".format(roomName.get(good[0]['room']),convertDuration(good[0]['duration']),good[0]['hr'],str(good[0]['min'])[0],date.strftime('%B'),day))   
+    
+    
+    # scrapeAndBook(delta,startHour,startMin,endHour,endMin,area,roompref)
+    # toReturn = {'hr': good[0]['hr'],
+    #             'min': good[0]['min'],
+    #             'duration': good[0]['duration']}
+    # return(toReturn)
+    return("Booked room {0} for {1} starting at {2}:{3} on {4} {5}".format(roomName.get(good[0]['room']),convertDuration(good[0]['duration']),good[0]['time'].hour,good[0]['time'].minute,date.strftime('%B'),day))
