@@ -163,12 +163,6 @@ def scrapeAndBook(delta,startTime,endTime,area,roompref):
 
     good = sorted(good, key=lambda k:(k['room'], k['time'])) #Sorts by room #, time so they can be dealt with nicely
 
-
-
-
-
-
-
     #Merge adjacent slots in the same room into up to 2hr long blocks
     good = merge(good)
 
