@@ -97,29 +97,6 @@ def merge(list):
             i+=1
     return list
 
-
-#Does the opposite of fixTime()
-def convertTimeToEnd(list):
-    if list['duration'] == 30:
-        if list['min'] == 0:
-            list['min'] += 30
-        else:
-            list['hr'] += 1
-            list['min'] = 0
-    
-    elif list['duration'] == 60:
-        list['hr'] += 1
-
-    elif list['duration'] == 90:
-        list['hr'] += 1
-        if list['min'] == 0:
-            list['min'] += 30
-        else:
-            list['hr'] += 1
-            list['min'] = 0
-
-    elif list['duration'] == 120:
-        list['hr'] += 2
 #Convert integer durations to what uvic uses(30m,1h,90m,2h)
 def convertDuration(itm):
     if itm == 30:
