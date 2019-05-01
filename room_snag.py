@@ -22,7 +22,7 @@ else:
     sys.exit(0)
 
 for i in range(1,5): # Run through all the floors but 4, it breaks everything because it is missing a href tag somewhere
-    result = book.scrapeAndBook(6,startTime,endTime,i,roompref)
+    result = book.scrapeAndBook(7,startTime,endTime,i,roompref)
 
     if result == "No rooms found":
         if i == 4: #If we're on the last floor and nothing was found
