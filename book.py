@@ -110,7 +110,7 @@ def convertDuration(itm):
     else:
         return "Invalid Number"
 
-def scrapeAndBook(delta,startTime,endTime,area,roompref):
+def scrapeAndBook(delta,startTime,endTime,area,roompref,returnStr=""):
     roomName = {1:'223(2nd Floor)', 
            3:'270(2nd Floor)', 
            4:'272(2nd Floor)', 
@@ -149,7 +149,7 @@ def scrapeAndBook(delta,startTime,endTime,area,roompref):
 
     good = sorted(good, key=lambda val:(-val['duration'], SORT_ORDER.get(str(val['room'])))) #This took ages please be proud. Sorts rooms based on duration then roompref. Unnecessary but some of the rooms are bad and I don't want them
 
-    if good: 
+    if good: #If there's actually anything left to book
         response = book(day,month,year,good[0],convertDuration(good[0]['duration']))
         if 'You are not permitted to make bookings that total more than 2 hours in a single day.' in response.text:
             return "2hr already booked on {0} {1}".format(date.strftime('%B'),day)
@@ -158,10 +158,20 @@ def scrapeAndBook(delta,startTime,endTime,area,roompref):
     else:
         return "No rooms found"
     
-    
-    # scrapeAndBook(delta,startHour,startMin,endHour,endMin,area,roompref)
-    # toReturn = {'hr': good[0]['hr'],
-    #             'min': good[0]['min'],
-    #             'duration': good[0]['duration']}
-    # return(toReturn)
-    return("Booked room {0} for {1} starting at {2}:{3} on {4} {5}".format(roomName.get(good[0]['room']),convertDuration(good[0]['duration']),good[0]['time'].hour,good[0]['time'].minute,date.strftime('%B'),day))
+    returnStr = ("Booked room {0} for {1} starting at {2}:{3} on {4} {5}\n".format(roomName.get(good[0]['room']),convertDuration(good[0]['duration']),good[0]['time'].hour,good[0]['time'].minute,date.strftime('%B'),day))
+
+
+    endDate = dt.datetime.combine(date, endTime)
+    startDate = dt.datetime.combine(date, startTime)
+    roomDate =  dt.datetime.combine(date, good[0]['time'])
+    if(good[0]['duration'] < ((endDate-startDate).seconds)/60): #Booked duration is shorter than requested
+
+        if(good[0]['time'] != startTime): #Booked time is later than the requested start time
+            returnStr += scrapeAndBook(delta, startTime, (endDate-dt.timedelta(minutes=good[0]['duration'])).time(), area, roompref)
+
+        if((roomDate+dt.timedelta(minutes=good[0]['duration'])).time() != endTime): #Booked time starts at the right time but is cut short
+            returnStr += scrapeAndBook(delta, (startDate+dt.timedelta(minutes=good[0]['duration'])).time(), endTime, area, roompref)
+
+
+    else:
+        return returnStr
