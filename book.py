@@ -175,3 +175,5 @@ def scrapeAndBook(delta,startTime,endTime,area,roompref,returnStr=""):
 
     else:
         return returnStr
+    
+    return returnStr
