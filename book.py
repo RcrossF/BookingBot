@@ -3,10 +3,12 @@ import json
 import sys
 import lxml.html as lh
 import datetime as dt
+import base64
 
 #constants
 urlBase = "https://webapp.library.uvic.ca/studyrooms/"
 header={'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0'}
+groupName = 'Literature Lads'
 
 try:
     with open('login.json') as f:
@@ -18,7 +20,8 @@ except:
 
 
 #Scrapes the Uvic url provided and returns an array of dictionaries containing cells that are available for booking(because of the headers row and col indexing starts at 1)
-def scrape(day,month,year,area):      
+#Set empty to false to return only rooms booked by you
+def scrape(day,month,year,area,empty):      
     page = requests.get(urlBase + "day.php?day={0}&month={1}&year={2}&area={3}".format(day,month,year,area), headers=header)
     doc = lh.fromstring(page.content)
     if area == 1:
@@ -56,26 +59,56 @@ def scrape(day,month,year,area):
             name=t.text_content()
             if len(hr_elements) > totalIterator:
                 room = hr_elements[totalIterator].split('&')[1].rpartition('=')[2] #Get room # from a bunch of other stuff we don't want
-                if name =="\n<!--\nBeginActiveCell();\n// -->\n\n<!--\nEndActiveCell();\n// -->\n": #Only append free rooms
-                    col.append(dict(time=dt.datetime.strptime(str(hour).strip()+":"+str(minute), '%H:%M').time(),room=int(room),duration=30)) 
-                    totalIterator+=1
+                if empty:
+                    if name =="\n<!--\nBeginActiveCell();\n// -->\n\n<!--\nEndActiveCell();\n// -->\n": #Only append free rooms
+                        col.append(dict(
+                            time=dt.datetime.strptime(str(hour).strip()+":"+str(minute), '%H:%M').time(),
+                            room=int(room),duration=30
+                            )
+                        ) 
+                        totalIterator+=1
+                else:
+                    if groupName in name: #If group name matched follow the link in that cell to get booking details
+                        bookingPage = requests.get(name.href)
+                        subDoc = lh.fromstring(bookingPage.content)
+                        times = subDoc.xpath("//div[@class='bookform']").text_content().rpartition(' to ')#TODO, bookform not unique... need to filter more
+                        start = dt.datetime.strptime(times[0], '%H:%M').time()
+                        end = dt.datetime.strptime(times[1], '%H:%M').time()
+                        dur = dt.timedelta(hour=end.hour,minute=end.minute) - dt.timedelta(hour=start.hour,minute=start.minute)
+                        col.append(dict(
+                            dur = dur,
+                            time = start,
+                            room = subDoc.xpath("//div[@class='bookform']").text_content()[4:] #TODO, bookform not unique... need to filter more
+                        ))
+                        #TODO veryify group name
+
                 j+=1
 
     return col
 
 
-#Books a slot for the given time period(String, Possible values: 30min, 1hr, 90min, 2hr). Slot is a dict of the available room
-def book(day,month,year,slot,period):
+def check(delta):
+    date = dt.date.today() + dt.timedelta(days=delta) #Get however many days in the future
+    year = date.year
+    month = date.month
+    day = date.day
+    available = scrape(day,month,year,area,empty=True)
+
+#Books a slot for the given time period(String, Possible values: 30min, 1hr, 90min, 2hr). Slot is a dict of the available room. Must be passed the user # of the account to book with
+def book(day,month,year,slot,period,user):
     url = urlBase + "edit_entry_handler.php"
+    password = str(base64.standard_b64decode(login['users'][user]['password']))
+    #Remove extra base64 decode characters
+    password = password[2:-1]
     values = {'day': day,
             'month': month,
             'year': year,
-            'name':'Literature Lads',
+            'name':groupName,
             'hour':slot['time'].hour,
             'minute':slot['time'].minute,
             'duration': period,
-            'netlinkid':login['username'],
-            'netlinkpw':login['password'],
+            'netlinkid':login['users'][user]['username'],
+            'netlinkpw':password,
             'returl':'',
             'room_id':slot['room'],
             'create_by':''} #https://github.com/SavioAlp for the correct post data
@@ -132,7 +165,7 @@ def scrapeAndBook(delta,startTime,endTime,area,roompref,returnStr=""):
     year = date.year
     month = date.month
     day = date.day
-    available = scrape(day,month,year,area)
+    available = scrape(day,month,year,area,empty=True)
     good = []
     for a in available: # Filter rooms by times we want
         if (startTime <= a['time'] < endTime):
@@ -150,13 +183,21 @@ def scrapeAndBook(delta,startTime,endTime,area,roompref,returnStr=""):
     good = sorted(good, key=lambda val:(-val['duration'], SORT_ORDER.get(str(val['room'])))) #This took ages please be proud. Sorts rooms based on duration then roompref. Unnecessary but some of the rooms are bad and I don't want them
 
     if good: #If there's actually anything left to book
-        response = book(day,month,year,good[0],convertDuration(good[0]['duration']))
-        if 'You are not permitted to make bookings that total more than 2 hours in a single day.' in response.text:
-            return "2hr already booked on {0} {1}".format(date.strftime('%B'),day)
-        elif "Invalid ID or password." in response.text:
-            return "Invalid ID or password"
+        #If 2 hrs already booked go to the next account and try again
+        for user, u in enumerate(login['users']):
+            response = book(day,month,year,good[0],convertDuration(good[0]['duration']),user)
+            if 'You are not permitted to make bookings that total more than 2 hours in a single day.' in response.text:
+                if user == login['users'][-1]: #If we're on the last user and couldn't make any successful bookings
+                    return "All accounts have maxed their bookings on {0} {1}".format(date.strftime('%B'),day)
+                else:
+                    continue
+
+            elif "Invalid ID or password." in response.text:
+                return "Invalid ID or password for user: "+login['users'][user]['username']
+
+            break
     else:
-        return "No rooms found"
+        return "No rooms found between {0} and {1}\n".format(startTime, endTime)
     
     returnStr = ("Booked room {0} for {1} starting at {2}:{3} on {4} {5}\n".format(roomName.get(good[0]['room']),convertDuration(good[0]['duration']),good[0]['time'].hour,good[0]['time'].minute,date.strftime('%B'),day))
 
