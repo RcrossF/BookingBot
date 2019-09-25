@@ -17,7 +17,7 @@ except:
     print("Error loading login.json")
     sys.exit(0)
 
-
+booked = [] #Keep track of booked times so the recursive function doesn't double book times
 
 #Scrapes the Uvic url provided and returns an array of dictionaries containing cells that are available for booking(because of the headers row and col indexing starts at 1)
 #Set empty to false to return only rooms booked by you
@@ -168,7 +168,7 @@ def scrapeAndBook(delta,startTime,endTime,area,roompref,returnStr=""):
     available = scrape(day,month,year,area,empty=True)
     good = []
     for a in available: # Filter rooms by times we want
-        if (startTime <= a['time'] < endTime):
+        if ((startTime <= a['time'] < endTime) and dt.datetime.combine(date, a['time']) not in booked):
             good.append(a)
 
     good = sorted(good, key=lambda k:(k['room'], k['time'])) #Sorts by room #, time so they can be dealt with nicely
@@ -182,11 +182,11 @@ def scrapeAndBook(delta,startTime,endTime,area,roompref,returnStr=""):
 
     good = sorted(good, key=lambda val:(-val['duration'], SORT_ORDER.get(str(val['room'])))) #This took ages please be proud. Sorts rooms based on duration then roompref. Unnecessary but some of the rooms are bad and I don't want them
 
+
     if good: #If there's actually anything left to book
-        #If 2 hrs already booked go to the next account and try again
         for user, u in enumerate(login['users']):
             response = book(day,month,year,good[0],convertDuration(good[0]['duration']),user)
-            if 'You are not permitted to make bookings that total more than 2 hours in a single day.' in response.text:
+            if 'You are not permitted to make bookings that total more than 2 hours in a single day.' in response.text: #If 2 hrs already booked go to the next account and try again
                 if user == login['users'][-1]: #If we're on the last user and couldn't make any successful bookings
                     return "All accounts have maxed their bookings on {0} {1}".format(date.strftime('%B'),day)
                 else:
@@ -199,12 +199,22 @@ def scrapeAndBook(delta,startTime,endTime,area,roompref,returnStr=""):
     else:
         return "No rooms found between {0} and {1}\n".format(startTime, endTime)
     
-    returnStr = ("Booked room {0} for {1} starting at {2}:{3} on {4} {5}\n".format(roomName.get(good[0]['room']),convertDuration(good[0]['duration']),good[0]['time'].hour,good[0]['time'].minute,date.strftime('%B'),day))
-
-
+    #Requested start and end datetime objects
     endDate = dt.datetime.combine(date, endTime)
     startDate = dt.datetime.combine(date, startTime)
+
+    #Booked start and end datetime objects
     roomDate =  dt.datetime.combine(date, good[0]['time'])
+    actualEndDate = roomDate+(dt.timedelta(minutes=good[0]['duration']))
+
+    returnStr = ("Booked room {0} for {1} starting at {2}:{3} on {4} {5}\n".format(roomName.get(good[0]['room']),convertDuration(good[0]['duration']),good[0]['time'].hour,good[0]['time'].minute,date.strftime('%B'),day))
+
+    
+    tempStart = roomDate
+    while(tempStart < actualEndDate):
+        booked.append(tempStart)
+        tempStart += dt.timedelta(minutes=30)
+
     if(good[0]['duration'] < ((endDate-startDate).seconds)/60): #Booked duration is shorter than requested
 
         if(good[0]['time'] != startTime): #Booked time is later than the requested start time
