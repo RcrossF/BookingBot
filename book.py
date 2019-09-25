@@ -86,7 +86,7 @@ def scrape(day,month,year,area,empty):
 
     return col
 
-
+#Not yet working
 def check(delta):
     date = dt.date.today() + dt.timedelta(days=delta) #Get however many days in the future
     year = date.year
