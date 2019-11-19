@@ -131,7 +131,7 @@ def book(day,month,year,slot,period,user):
     values = {'day': day,
             'month': month,
             'year': year,
-            'name': groupName+random.randint(0,1000), #Unique name per person booking
+            'name': groupName+str(random.randint(0,1000)), #Unique name per person booking
             'hour':slot['time'].hour,
             'minute':slot['time'].minute,
             'duration': period,
