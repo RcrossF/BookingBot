@@ -4,11 +4,8 @@ import sys
 import lxml.html as lh
 import datetime as dt
 import base64
-<<<<<<< HEAD
 import random
-=======
 import time
->>>>>>> 703f02a19f51850f9b7128397905190f885f118a
 
 #constants
 urlBase = "https://webapp.library.uvic.ca/studyrooms/"
