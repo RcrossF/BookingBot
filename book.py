@@ -4,7 +4,11 @@ import sys
 import lxml.html as lh
 import datetime as dt
 import base64
+<<<<<<< HEAD
 import random
+=======
+import time
+>>>>>>> 703f02a19f51850f9b7128397905190f885f118a
 
 #constants
 urlBase = "https://webapp.library.uvic.ca/studyrooms/"
@@ -46,7 +50,8 @@ booked = [] #Keep track of booked times so the recursive function doesn't double
 
 #Scrapes the Uvic url provided and returns an array of dictionaries containing cells that are available for booking(because of the headers row and col indexing starts at 1)
 #Set empty to false to return only rooms booked by you
-def scrape(day,month,year,area,empty):      
+def scrape(day,month,year,area,empty):
+    time.sleep(5) #DO NOT REMOVE THIS LINE OR THE BOT WILL NOT WORK
     page = requests.get(urlBase + "day.php?day={0}&month={1}&year={2}&area={3}".format(day,month,year,area), headers=header)
     doc = lh.fromstring(page.content)
     if area == 1:
