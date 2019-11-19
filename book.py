@@ -4,11 +4,13 @@ import sys
 import lxml.html as lh
 import datetime as dt
 import base64
+import random
 
 #constants
 urlBase = "https://webapp.library.uvic.ca/studyrooms/"
 header={'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0'}
-groupName = 'Literature Lads'
+groupNames = ['Literature Lads', 'Book Boys', 'Cultural Comrades']
+groupName = groupNames[random.randrange(len(groupNames))]
 
 try:
     with open('login.json') as f:
@@ -18,6 +20,29 @@ except:
     sys.exit(0)
 
 booked = [] #Keep track of booked times so the recursive function doesn't double book times
+
+#Cancels all rooms passed
+# def cancel(booked):
+#     for room in booked:
+#         url = urlBase + "edit_entry_handler.php"
+#         for user in login['users']:
+#             password = str(base64.standard_b64decode(login['users'][user]['password']))
+#             #Remove extra base64 decode characters
+#             password = password[2:-1]
+#             values = {'day': day,
+#                 'month': month,
+#                 'year': year,
+#                 'name':groupName,
+#                 'hour':slot['time'].hour,
+#                 'minute':slot['time'].minute,
+#                 'duration': period,
+#                 'netlinkid':login['users'][user]['username'],
+#                 'netlinkpw':password,
+#                 'returl':'',
+#                 'room_id':slot['room'],
+#                 'create_by':''} #https://github.com/SavioAlp for the correct post data
+#             requests.post(url,values,headers=header)
+#     return 1
 
 #Scrapes the Uvic url provided and returns an array of dictionaries containing cells that are available for booking(because of the headers row and col indexing starts at 1)
 #Set empty to false to return only rooms booked by you
@@ -100,10 +125,11 @@ def book(day,month,year,slot,period,user):
     password = str(base64.standard_b64decode(login['users'][user]['password']))
     #Remove extra base64 decode characters
     password = password[2:-1]
+    random.seed(None)
     values = {'day': day,
             'month': month,
             'year': year,
-            'name':groupName,
+            'name': groupName+random.randint(0,1000), #Unique name per person booking
             'hour':slot['time'].hour,
             'minute':slot['time'].minute,
             'duration': period,
