@@ -10,7 +10,10 @@ import time
 #constants
 urlBase = "https://webapp.library.uvic.ca/studyrooms/"
 header={'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0'}
-groupNames = ['Literature Lads', 'Book Boys', 'Cultural Comrades']
+groupNames = ['Literature Lads', 'Book Boys', 'Cultural Comrades', 'Academic Amigos', 
+'Hardcover Hardhats', 'Compendium Collective', 'Textbook Templars', 'Codex Crew', 
+'Fiction Faction', 'Lexicon League', 'Paperback Platoon', 'Novel Nerds', 'Encyclopedia Entourage']
+
 groupName = groupNames[random.randrange(len(groupNames))]
 
 try:
