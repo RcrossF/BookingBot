@@ -11,3 +11,4 @@ TODO:
   - Improve slack commands
   - Check existing bookings through the bot
   - Improve multi netlink booking functionality, some times will be double booked if the user switches over
+  - Switch from lxml to beautifulSoup
