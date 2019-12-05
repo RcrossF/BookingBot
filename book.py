@@ -25,38 +25,17 @@ except:
 
 booked = [] #Keep track of booked times so the recursive function doesn't double book times
 
-#Cancels all rooms passed
-# def cancel(booked):
-#     for room in booked:
-#         url = urlBase + "edit_entry_handler.php"
-#         for user in login['users']:
-#             password = str(base64.standard_b64decode(login['users'][user]['password']))
-#             #Remove extra base64 decode characters
-#             password = password[2:-1]
-#             values = {'day': day,
-#                 'month': month,
-#                 'year': year,
-#                 'name':groupName,
-#                 'hour':slot['time'].hour,
-#                 'minute':slot['time'].minute,
-#                 'duration': period,
-#                 'netlinkid':login['users'][user]['username'],
-#                 'netlinkpw':password,
-#                 'returl':'',
-#                 'room_id':slot['room'],
-#                 'create_by':''} #https://github.com/SavioAlp for the correct post data
-#             requests.post(url,values,headers=header)
-#     return 1
 
 #Scrapes the Uvic url provided and returns an array of dictionaries containing cells that are available for booking(because of the headers row and col indexing starts at 1)
 #Set empty to false to return only rooms booked by you
 def scrape(day,month,year,area,empty):
-    time.sleep(5) #DO NOT REMOVE THIS LINE OR THE BOT WILL NOT WORK
+    time.sleep(5) 
+    
+    #lxml is not ideal for parsing HTML and the app should be switched over to beautifulsoup
+    
     page = requests.get(urlBase + "day.php?day={0}&month={1}&year={2}&area={3}".format(day,month,year,area), headers=header)
     doc = lh.fromstring(page.content)
-    if area == 1:
-        columns = 10
-    elif area == 2:
+    if area == 2:
         columns = 5
     elif area == 4:
         columns = 4
@@ -97,21 +76,6 @@ def scrape(day,month,year,area,empty):
                             )
                         ) 
                         totalIterator+=1
-                else:
-                    if groupName in name: #If group name matched follow the link in that cell to get booking details
-                        bookingPage = requests.get(name.href)
-                        subDoc = lh.fromstring(bookingPage.content)
-                        times = subDoc.xpath("//div[@class='bookform']").text_content().rpartition(' to ')#TODO, bookform not unique... need to filter more
-                        start = dt.datetime.strptime(times[0], '%H:%M').time()
-                        end = dt.datetime.strptime(times[1], '%H:%M').time()
-                        dur = dt.timedelta(hour=end.hour,minute=end.minute) - dt.timedelta(hour=start.hour,minute=start.minute)
-                        col.append(dict(
-                            dur = dur,
-                            time = start,
-                            room = subDoc.xpath("//div[@class='bookform']").text_content()[4:] #TODO, bookform not unique... need to filter more
-                        ))
-                        #TODO veryify group name
-
                 j+=1
 
     return col
