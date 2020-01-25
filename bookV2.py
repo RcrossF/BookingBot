@@ -4,11 +4,18 @@ import datetime as dt
 import requests
 from bs4 import BeautifulSoup
 import re
-import datetime as dt
+import base64
+from numpy import random
 
+loginUrl = "https://www.uvic.ca/cas/login"
 urlBase = "https://webapp.library.uvic.ca/studyrooms/"
 header = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0"
+    "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0",
+    'Accept' : 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 
+    'Accept-Language' : 'en-US,en;q=0.5',
+    'Accept-Encoding' : 'gzip', 
+    'DNT' : '1',
+    'Connection' : 'close'
 }
 
 room_ids = {
@@ -106,6 +113,7 @@ class Cell(object):
 
         return lower_bound <= my_time and my_time < upper_bound
 
+
     def print_cell(self):
         if self.is_booked:
             print(
@@ -136,7 +144,7 @@ def scrape(day, month, year, area):
     # time.sleep(5)
 
     # Scrape the webpage for its data
-    resp = requests.get(to_url(day, month, year, area))
+    resp = requests.get(to_url(day, month, year, area), headers=header)
     # Parse it with BeautifulSoup
     soup = BeautifulSoup(resp.text, "lxml")
 
@@ -148,12 +156,18 @@ def scrape(day, month, year, area):
     existing_bookings = []
     for tr in bookings_table_rows[1:]:
         time = list(map(int, re.findall("\d{2}", tr.contents[1].text)))
+
+        #Account for 24h time
+        if "PM" in tr.contents[1].text and time[0] != 12:
+            time[0] += 12
         current_time = (time[0], time[1])
+
+        
 
         #Skip all the newlines
         for td in (td for td in tr.contents[2:] if td != '\n'):
             if 'new' in td.attrs['class']:
-                duration = 0
+                duration = 30
                 group_name = None
                 booking_id = None
                 room = re.search("(?<=room=)\d", td.contents[1].contents[1].attrs['href']).group(0)
@@ -230,7 +244,7 @@ def get_our_bookings(existing_bookings, possible_names):
 
 # Sorts by the duration and room preference
 def sort_by_preference(bookings):
-    return sorted(bookings, key=lambda x: (-x.duration, roomPref.index(x.room_id) if roomPref.index(x.room_id) is not None else 99))
+    return sorted(bookings, key=lambda x: (-x.duration, roomPref.index(x.room_id)))
 
 # Returns all free rooms during requested time period -offset- days in the future
 def get_requested_times(offset, start_time, end_time):
@@ -249,6 +263,103 @@ def get_requested_times(offset, start_time, end_time):
     requested_times = get_within_times(unbooked_rooms, start_time, end_time)
     good_rooms = sort_by_preference(requested_times)
 
+    #Drop duplicate times
+    times = []
+    i = 0
+    while i < len(good_rooms):
+        if good_rooms[i].time not in times:
+            times.append(good_rooms[i].time)
+            i+=1
+        else:
+            del(good_rooms[i])
+
+    #Merge adjacent cells, assumes all cells have a 30min duration at this point
+    i = len(good_rooms) - 1
+    while i > 1:
+        prev_h = good_rooms[i-1].time[0]
+        prev_m = good_rooms[i-1].time[1]
+        cur_h = good_rooms[i].time[0]
+        cur_m = good_rooms[i].time[1]
+
+        if good_rooms[i-1].room_id == good_rooms[i].room_id:
+            if (prev_h == cur_h or (abs(prev_h - cur_h) == 1 and prev_m == 30 and cur_m == 0)) and good_rooms[i-1].duration < 120:
+                good_rooms[i-1].duration += good_rooms[i].duration
+                del(good_rooms[i])
+                i = len(good_rooms) - 1
+                continue
+
+        i-=1
+
     return good_rooms
 
-get_requested_times(1, (12,0), (14,30))
+#Makes the booking call for every cell pass
+def make_booking(cells, offset):
+    date = dt.date.today() + dt.timedelta(days=offset) #Get however many days in the future
+    date_str = date.strftime("%Y-%m-%d")
+
+    for cell in cells:
+        for user in login['users']:
+            #Create a new session
+            s = requests.Session()
+
+            #Get the execution token from login page
+            resp = s.get(loginUrl+"?service=https://webapp.library.uvic.ca/studyrooms/edit_entry.php", headers=header)
+            # Parse it with BeautifulSoup
+            soup = BeautifulSoup(resp.text, "lxml")
+            execution_token = soup.find(attrs={"name" : "execution"}).attrs['value']
+
+            #Log in
+            password = str(base64.standard_b64decode(user['password']))
+            #Remove extra base64 decode characters
+            password = password[2:-1]
+            params = {
+                "username": user['username'],
+                "password": password,
+                "execution": execution_token,
+                "_eventId": "submit"
+            }
+            s.post(loginUrl, params, headers=header)
+
+
+            #See if login was successful
+            resp = s.get(urlBase+"edit_entry.php", headers=header)
+            # Parse it with BeautifulSoup
+            soup = BeautifulSoup(resp.text, "lxml")
+            if "Please login to create" in soup:
+                print("Login for user "+user+" failed")
+                continue #Login failed, move to next account
+
+            #Get CSRF token
+            csrf_token = soup.find(attrs={"name" : "csrf_token"}).attrs['content']
+
+            #Uvic now uses seconds as the booking time. Go figure...
+            start_seconds = cell.time[0] * 3600 + cell.time[1] * 60
+            end_seconds = start_seconds + cell.duration * 60
+            params = {
+                "csrf_token": csrf_token,
+                "create_by": "",
+                "rep_id": 0,
+                "edit_type": "series",
+                "name": random.choice(possible_names),
+                "rooms[]": cell.room_id,
+                "start_date": date_str,
+                "end_date": date_str,
+                "start_seconds": start_seconds,
+                "end_seconds": end_seconds
+            }
+
+            #Make the final booking request
+            resp = s.post(urlBase+"edit_entry.php", headers=header)
+
+            #Account maxed, move onto next
+            if "The maximum number of bookings" in resp.text:
+                continue
+
+            #Sucessful booking, break out of user loop
+            cell.print_cell()
+            break
+
+
+
+offset = 1
+make_booking(get_requested_times(offset, (12,0), (14,30)), offset)
