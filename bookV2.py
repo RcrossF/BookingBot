@@ -19,26 +19,43 @@ header = {
 }
 
 room_ids = {
-    1: "Room 113a",
-    2: "Room 113b",
-    3: "Room 113c",
-    4: "Room 113d",
-    5: "Room 131",
-    6: "Room A103",
-    7: "Room A105",
-    8: "Room A107",
-    9: "Room A109",
-    10: "Room 050a",
-    11: "Room 050b",
-    12: "Room 050c",
-    13: "Room 223",
-    14: "Room 270",
-    15: "Room 272",
-    16: "Room 274"
+    "Room 113a": 1,
+    "Room 113b": 2,
+    "Room 113c": 3,
+    "Room 113d": 4,
+    "Room 131": 5,
+    "Room A103": 6,
+    "Room A105": 7,
+    "Room A107": 8,
+    "Room A109": 9,
+    "Room 050a": 10,
+    "Room 050b": 11,
+    "Room 050c": 12,
+    "Room 223": 13,
+    "Room 270": 14,
+    "Room 272": 15,
+    "Room 274": 16
 }
 
 # Indisputable tier list of room ids
-roomPref = [9, 8, 5, 7, 6, 1, 3, 2, 4, 16, 15, 14, 13, 12, 11, 10]
+roomPref = {
+    "Room A109": 0,
+    "Room A107": 1,
+    "Room 131": 2,
+    "Room A105": 3,
+    "Room A103": 4,
+    "Room 113a": 5,
+    "Room 113c": 6,
+    "Room 113b": 7,
+    "Room 113d": 8,
+    "Room 274": 9,
+    "Room 272": 10,
+    "Room 270": 11,
+    "Room 223": 12,
+    "Room 050c": 13,
+    "Room 050b": 14,
+    "Room 050a": 15
+}
 
 # Gets the group names from an external file
 try:
@@ -59,90 +76,45 @@ except:
 
 def to_url(day, month, year, area):
     """ Turns the {day, month, year, area} into a url. """
-    complete_url = urlBase + \
-        f"day.php?day={day}&month={month}&year={year}&area={area}"
+    complete_url = urlBase \
+        + f"day.php?day={day}&month={month}&year={year}&area={area}"
     return complete_url
 
 
 class Cell(object):
     """ Holds booking parameters for a cell in the bookings table. """
 
-    def __init__(
-        self,
-        room_id,
-        group_name,
-        booking_id,
-        area,
-        day,
-        time,
-        duration
-    ):
-        self.room_name = room_ids[room_id]
-        self.room_id = room_id
+    def __init__(self, room_name, group_name, booking_id,
+                 area, day, time, duration):
+        self.room_name = room_name
+        self.room_id = room_ids[room_name]
         self.group_name = group_name
         self.booking_id = booking_id
         self.area = area
         self.day = day
-        # Time in (hours, minutes)
+        # Time in seconds
         self.time = time
-        # Available duration in minutes
+        # Available duration in seconds
         self.duration = duration
 
     def is_booked(self):
         return (self.booking_id is not None)
 
-    def add_time(self, time):
-        """ Extends a booking's duration. """
-        self.duration += time
-
-    def convert_duration(self):
-        """ Convert integer durations to what UVic uses {30m, 1h, 90m, 2h}. """
-        time_map = {30: "30min", 60: "1hr", 90: "90min", 120: "2hr"}
-
-        try:
-            return time_map[self.duration]
-        except:
-            if self.duration > 120:
-                return time_map[120]
-            else:
-                return "Invalid Duration"
-
-    def is_between_times(self, start=(0, 0), end=(0, 0)):
+    def is_between_times(self, start=0, end=0):
         """
         Checks if the current cell's time is between 'start' and 'end'.
-        eg. between (3, 30) and (5, 0) would include (3, 30), (4, 0), and (4, 30)
+
+        eg. Between 12600 and 18000 would include 12600 <= x < 18000.
         """
-        lower_bound = start[1] + 60 * start[0]
-        upper_bound = end[1] + 60 * end[0]
-        my_time = self.time[1] + 60 * self.time[0]
 
-        return lower_bound <= my_time and my_time < upper_bound
-
-    def print_cell(self):
-        if self.is_booked:
-            print(
-                f"At {self.time[0]}:{self.time[1]}, {self.group_name} booked {self.room_name} for {self.duration} minutes."
-            )
-
-        else:
-            print(
-                f"At {self.time[0]}:{self.time[1]}, {self.room_name} is available for {self.duration} minutes."
-            )
+        return start <= self.time and self.time < end
 
     def __repr__(self):
-        return f"{self.room_name} at {self.time[0]:02}:{self.time[1]:02} for {self.duration} minutes."
-
-
-def to_24_hr(time_str):
-    """ Converts the time slot text to {hours, minutes}. """
-    hour = int(time_str[:-6])
-    minute = int(time_str[-5:-3])
-    after_12 = True if (time_str[-2:] == "pm") else False
-
-    if after_12 and hour != 12:
-        hour += 12
-
-    return (hour, minute)
+        return (f"{self.group_name} has "
+                f"{self.room_name} at "
+                f"{self.time} for "
+                f"{self.duration} seconds"
+                f"{{{self.booking_id}}}.")
 
 
 def scrape(day, month, year, area):
@@ -160,38 +132,41 @@ def scrape(day, month, year, area):
     bookings_table = soup.find("table", {'id': 'day_main'})
     bookings_table_rows = bookings_table.find_all("tr")
 
+    # Get the room names from the header
+    booking_table_header = bookings_table_rows[0].find_all("th")
+    room_names = [x.text.strip()[:-3] for x in booking_table_header]
+
     existing_bookings = []
     for tr in bookings_table_rows[1:]:
-        time = list(map(int, re.findall("\d{2}", tr.contents[1].text)))
+        # Gets the time, in seconds, of the row
+        row_time = tr.find("td", attrs={"class": "row_labels"})["data-seconds"]
 
-        # Account for 24h time
-        if "PM" in tr.contents[1].text and time[0] != 12:
-            time[0] += 12
-        current_time = (time[0], time[1])
+        row_cols = tr.find_all("td")
+        for i in range(1, len(row_cols)):
+            """
+            In each <td> tag:
+            - td_class tells you if the room is booked or unbooked.
+            - <a> tags contain the group name or nothing if unbooked.
+            - link in the <a> tag contains the date.
+            - div_class tells you the duration and booking id.
+            """
+            raw_cell = row_cols[i]
+            room = room_names[i]
 
-        # Skip all the newlines
-        for td in (td for td in tr.contents[2:] if td != '\n'):
-            if 'new' in td.attrs['class']:
-                duration = 30
+            # Room unbooked
+            if raw_cell.attrs["class"] == ["new"]:
+                duration = 1800
                 group_name = None
                 booking_id = None
-                room = re.search(
-                    "(?<=room=)\d", td.contents[1].contents[1].attrs['href']).group(0)
-                room = int(room)
 
-            elif 'I' in td.attrs['class']:
-                # Duration can be calculated by how many cells long the booking is
-                if 'rowspan' in td.attrs:
-                    duration = 30*td.attrs['rowspan']
-                else:
-                    duration = 30
-                group_name = td.contents[1].contents[1].text
-                booking_id = int(td.contents[1].attrs['data-id'])
-                id = "Unknown"  # TODO: Find a way to get room # for already booked rooms
+            elif raw_cell.attrs["class"] == ["I"]:
+                raw_cell_div = raw_cell.find("div").attrs
+                duration = int(raw_cell_div["class"][-1][-1]) * 1800
+                group_name = raw_cell.text.strip()
+                booking_id = int(raw_cell_div["data-id"])
 
-            area = re.search(
-                "(?<=area=)\d", td.contents[1].contents[1].attrs['href']).group(0)
-            area = int(area)
+            else:
+                raise ValueError("Unexpected cell")
 
             existing_bookings.append(
                 Cell(
@@ -200,7 +175,7 @@ def scrape(day, month, year, area):
                     booking_id,
                     area,
                     day,
-                    current_time,
+                    row_time,
                     duration
                 )
             )
@@ -228,15 +203,13 @@ def get_available(existing_bookings):
     return available
 
 
-def get_within_times(bookings, start_time=(0, 0), end_time=(0, 0)):
+def get_within_times(bookings, start=0, end=0):
     """
-    Search the list of bookings and return those that fall between the time_slot
+    Return bookings that are within the given times.
 
-    Includes start_time but does not include end_time
-
-    eg. between (3, 30) and (5, 0) would include (3, 30), (4, 0), and (4, 30)
+    eg. Between 12600 and 18000 would include 12600 <= x < 18000.
     """
-    return list(filter(lambda x: x.is_between_times(start_time, end_time), bookings))
+    return list(filter(lambda x: x.is_between_times(start, end), bookings))
 
 
 def get_unbooked(bookings):
@@ -248,7 +221,8 @@ def get_our_bookings(existing_bookings, possible_names):
     """
     Search the array of cells and return all that are booked by us
 
-    TODO: Other groups that happen to use the same name as us will be matched here. Not sure how to address this yet
+    TODO: Other groups that happen to use the same name
+    as us will be matched here. Not sure how to address this yet
     """
     ours = []
 
@@ -261,12 +235,13 @@ def get_our_bookings(existing_bookings, possible_names):
 
 def sort_by_preference(bookings):
     """ Sorts by the duration and room preference. """
-    return sorted(bookings, key=lambda x: (-x.duration, roomPref.index(x.room_id)))
+    return sorted(bookings, key=lambda x: (-x.duration, roomPref[x.room_name]))
 
 
 def get_requested_times(offset, start_time, end_time):
     """
-    Return all free rooms during requested time period, 'offset' days in the future.
+    Return all free rooms during requested time period,
+    'offset' days in the future.
     """
     # Get however many days in the future
     date = dt.date.today() + dt.timedelta(days=offset)
@@ -276,7 +251,7 @@ def get_requested_times(offset, start_time, end_time):
 
     rooms = []
     # Iterate through every floor except basement
-    for i in [1, 2]:
+    for i in [1, 3]:
         rooms += scrape(day, month, year, i)
 
     # Filter any room not in the time we want
@@ -294,7 +269,7 @@ def get_requested_times(offset, start_time, end_time):
         else:
             del(good_rooms[i])
 
-    # Merge adjacent cells, assumes all cells have a 30min duration at this point
+    # Merge adjacent cells, assumes all cells have a 30min duration
     i = len(good_rooms) - 1
     while i > 1:
         prev_h = good_rooms[i-1].time[0]
@@ -303,8 +278,7 @@ def get_requested_times(offset, start_time, end_time):
         cur_m = good_rooms[i].time[1]
 
         if good_rooms[i-1].room_id == good_rooms[i].room_id:
-            if (prev_h == cur_h or (abs(prev_h - cur_h) == 1
-                                    and prev_m == 30 and cur_m == 0)) and good_rooms[i-1].duration < 120:
+            if (prev_h == cur_h or (abs(prev_h - cur_h) == 1 and prev_m == 30 and cur_m == 0)) and good_rooms[i-1].duration < 120:
                 good_rooms[i-1].duration += good_rooms[i].duration
                 del(good_rooms[i])
                 i = len(good_rooms) - 1
@@ -389,6 +363,10 @@ def make_booking(cells, offset):
 
 
 offset = 1
+date = dt.date.today() + dt.timedelta(days=offset)
+year = date.year
+month = date.month
+day = date.day
 # make_booking(get_requested_times(offset, (12, 0), (14, 30)), offset)
-for r in get_requested_times(offset, (12, 0), (14, 30)):
+for r in flatten(scrape(day, month, year, 1)):
     print(r)
