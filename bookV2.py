@@ -113,11 +113,11 @@ class Cell(object):
         return (f"{self.group_name} has "
                 f"{self.room_name} at "
                 f"{self.time} for "
-                f"{self.duration} seconds"
-                f"{{{self.booking_id}}}.")
+                f"{self.duration} seconds.")
 
 
 def scrape(day, month, year, area):
+    # TODO Find a way to get room names
     """ Scrape the given date and area and return an array of Cell objects. """
     # IMPORTANT, DO NOT TOUCH
     # time.sleep(5)
@@ -139,7 +139,8 @@ def scrape(day, month, year, area):
     existing_bookings = []
     for tr in bookings_table_rows[1:]:
         # Gets the time, in seconds, of the row
-        row_time = tr.find("td", attrs={"class": "row_labels"})["data-seconds"]
+        row_time = int(tr.find("td", attrs={"class": "row_labels"})[
+                       "data-seconds"])
 
         row_cols = tr.find_all("td")
         for i in range(1, len(row_cols)):
@@ -151,13 +152,13 @@ def scrape(day, month, year, area):
             - div_class tells you the duration and booking id.
             """
             raw_cell = row_cols[i]
-            room = room_names[i]
 
             # Room unbooked
             if raw_cell.attrs["class"] == ["new"]:
                 duration = 1800
                 group_name = None
                 booking_id = None
+                # room = room_names[i]
 
             elif raw_cell.attrs["class"] == ["I"]:
                 raw_cell_div = raw_cell.find("div").attrs
@@ -170,7 +171,7 @@ def scrape(day, month, year, area):
 
             existing_bookings.append(
                 Cell(
-                    room,
+                    None,
                     group_name,
                     booking_id,
                     area,
@@ -363,10 +364,6 @@ def make_booking(cells, offset):
 
 
 offset = 1
-date = dt.date.today() + dt.timedelta(days=offset)
-year = date.year
-month = date.month
-day = date.day
-# make_booking(get_requested_times(offset, (12, 0), (14, 30)), offset)
-for r in flatten(scrape(day, month, year, 1)):
+# make_booking(get_requested_times(offset, 43200, 52200), offset)
+for r in get_requested_times(offset, 43200, 52200):
     print(r)
