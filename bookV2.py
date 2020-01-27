@@ -364,6 +364,4 @@ def make_booking(cells, offset):
 
 
 offset = 1
-# make_booking(get_requested_times(offset, 43200, 52200), offset)
-for r in get_requested_times(offset, 43200, 52200):
-    print(r)
+make_booking(get_requested_times(offset, 43200, 52200), offset)
