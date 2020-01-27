@@ -66,12 +66,12 @@ except:
     sys.exit(0)
 
 # Open the credentials file
-# try:
-#     with open("login.json") as f:
-#         login = json.load(f)
-# except:
-#     print("Error loading login.json")
-#     sys.exit(0)
+try:
+    with open("login.json") as f:
+        login = json.load(f)
+except:
+    print("Error loading login.json")
+    sys.exit(0)
 
 
 def to_url(day, month, year, area):
