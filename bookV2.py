@@ -336,8 +336,8 @@ def make_booking(cells, offset):
                 attrs={"name": "csrf_token"}).attrs['content']
 
             # Uvic now uses seconds as the booking time. Go figure...
-            start_seconds = cell.time[0] * 3600 + cell.time[1] * 60
-            end_seconds = start_seconds + cell.duration * 60
+            start_seconds = cell.time
+            end_seconds = start_seconds + cell.duration
             params = {
                 "csrf_token": csrf_token,
                 "create_by": "",
