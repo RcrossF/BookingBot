@@ -128,13 +128,9 @@ def scrape(day, month, year, area):
     soup = BeautifulSoup(resp.text, "lxml")
 
     # Get a list of all tables and pick out the one we need
-    #   Our table in interest is the fourth table
+    #   Our table of interest has the id 'day_main'
     bookings_table = soup.find("table", {'id': 'day_main'})
     bookings_table_rows = bookings_table.find_all("tr")
-
-    # Get the room names from the header
-    booking_table_header = bookings_table_rows[0].find_all("th")
-    room_names = [x.text.strip()[:-3] for x in booking_table_header]
 
     existing_bookings = []
     for tr in bookings_table_rows[1:]:
@@ -158,20 +154,34 @@ def scrape(day, month, year, area):
                 duration = 1800
                 group_name = None
                 booking_id = None
-                # room = room_names[i]
+                # Regex that bad boy
+                booking_link = raw_cell.a.attrs["href"]
+                room_id = int(re.findall(r'room=(\d+)', booking_link)[0])
 
+            # Room is booked
             elif raw_cell.attrs["class"] == ["I"]:
                 raw_cell_div = raw_cell.find("div").attrs
                 duration = int(raw_cell_div["class"][-1][-1]) * 1800
                 group_name = raw_cell.text.strip()
                 booking_id = int(raw_cell_div["data-id"])
 
+                booking_link = raw_cell.a.attrs["href"]
+                booking_url = "https://webapp.library.uvic.ca/studyrooms/" + booking_link
+                booking_resp = requests.get(booking_url)
+                booking_page_soup = BeautifulSoup(booking_resp.text, "lxml")
+                booking_params = booking_page_soup.find(
+                    "table", {'id': 'entry'})
+                # I'm sorry
+                room_text = booking_params.find_all(
+                    "tr")[-1].find_all("td")[-1].text.strip()
+                room_id = room_ids[re.findall(r'(Room .+)', room_text)[0]]
+
             else:
                 raise ValueError("Unexpected cell")
 
             existing_bookings.append(
                 Cell(
-                    None,
+                    room_id,
                     group_name,
                     booking_id,
                     area,
