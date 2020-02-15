@@ -18,7 +18,24 @@ header = {
     'Connection': 'close'
 }
 
+# 2-way dict relating 'room_name's to 'room_id's
 room_ids = {
+    1: "Room 113a",
+    2: "Room 113b",
+    3: "Room 113c",
+    4: "Room 113d",
+    5: "Room 131",
+    6: "Room A103",
+    7: "Room A105",
+    8: "Room A107",
+    9: "Room A109",
+    10: "Room 050a",
+    11: "Room 050b",
+    12: "Room 050c",
+    13: "Room 223",
+    14: "Room 270",
+    15: "Room 272",
+    16: "Room 274",
     "Room 113a": 1,
     "Room 113b": 2,
     "Room 113c": 3,
@@ -84,10 +101,10 @@ def to_url(day, month, year, area):
 class Cell(object):
     """ Holds booking parameters for a cell in the bookings table. """
 
-    def __init__(self, room_name, group_name, booking_id,
+    def __init__(self, room_id, group_name, booking_id,
                  area, day, time, duration):
-        self.room_name = room_name
-        self.room_id = room_ids[room_name]
+        self.room_name = room_ids[room_id]
+        self.room_id = room_id
         self.group_name = group_name
         self.booking_id = booking_id
         self.area = area
