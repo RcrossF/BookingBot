@@ -6,6 +6,9 @@ from bs4 import BeautifulSoup
 import re
 import base64
 from numpy import random
+from enum import Enum
+
+from utils import flatten, get_available, get_within_times, get_our_bookings, get_unbooked, sort_by_prefrence, to_uvic_url
 
 loginUrl = "https://www.uvic.ca/cas/login"
 urlBase = "https://webapp.library.uvic.ca/studyrooms/"
@@ -18,67 +21,59 @@ header = {
     'Connection': 'close'
 }
 
-room_ids = {
-    "Room 113a": 1,
-    "Room 113b": 2,
-    "Room 113c": 3,
-    "Room 113d": 4,
-    "Room 131": 5,
-    "Room A103": 6,
-    "Room A105": 7,
-    "Room A107": 8,
-    "Room A109": 9,
-    "Room 050a": 10,
-    "Room 050b": 11,
-    "Room 050c": 12,
-    "Room 223": 13,
-    "Room 270": 14,
-    "Room 272": 15,
-    "Room 274": 16
-}
+class Floors(Enum):
+    BASEMENT = 0
+    FIRST = 1
+    SECOND = 2
 
-# Indisputable tier list of room ids
-roomPref = {
-    "Room A109": 0,
-    "Room A107": 1,
-    "Room 131": 2,
-    "Room A105": 3,
-    "Room A103": 4,
-    "Room 113a": 5,
-    "Room 113c": 6,
-    "Room 113b": 7,
-    "Room 113d": 8,
-    "Room 274": 9,
-    "Room 272": 10,
-    "Room 270": 11,
-    "Room 223": 12,
-    "Room 050c": 13,
-    "Room 050b": 14,
-    "Room 050a": 15
-}
+@dataclass
+class Room:
+    """
+    Represents a bookable room. Quality ranges from 0 to 10
+    """
+    quality: int
+    floor: Floors
+    name: str
+    id: int
 
-# Gets the group names from an external file
-try:
-    with open("group_names.json") as F:
-        possible_names = json.load(F)['names']
-except:
-    print("Error loading group_names.txt")
-    sys.exit(0)
-
-# Open the credentials file
-try:
-    with open("login.json") as f:
-        login = json.load(f)
-except:
-    print("Error loading login.json")
-    sys.exit(0)
+@dataclass
+class Rooms(Enum):
+    ROOM113A = Room(quality=5, floor=Floors.FIRST, name='Room 113a', id=1)
+    ROOM113B = Room(quality=4, floor=Floors.FIRST, name='Room 113b', id=2)
+    ROOM113C = Room(quality=3, floor=Floors.FIRST, name='Room 113c', id=3)
+    ROOM113D = Room(quality=8, floor=Floors.FIRST, name='Room 113c', id=4)
+    ROOM131 = Room(quality=8, floor=Floors.FIRST, name='Room 131', id=5)
+    ROOMA103 = Room(quality=6, floor=Floors.FIRST, name='Room A103', id=6)
+    ROOMA105 = Room(quality=7, floor=Floors.FIRST, name='Room A105', id=7)
+    ROOMA107 = Room(quality=9, floor=Floors.FIRST, name='Room A107', id=8)
+    ROOMA109 = Room(quality=10, floor=Floors.FIRST, name='Room A109', id=9)
+    ROOM050A = Room(quality=1, floor=Floors.BASEMENT, name='Room 050A', id=10)
+    ROOM050B = Room(quality=1, floor=Floors.BASEMENT, name='Room 050B', id=11)
+    ROOM050C = Room(quality=1, floor=Floors.BASEMENT, name='Room 050C', id=12)
+    ROOM223 = Room(quality=2, floor=Floors.SECOND, name='Room 223', id=13)
+    ROOM270 = Room(quality=2, floor=Floors.SECOND, name='Room 270', id=14)
+    ROOM272 = Room(quality=2, floor=Floors.SECOND, name='Room 272', id=15)
+    ROOM274 = Room(quality=2, floor=Floors.SECOND, name='Room 274', id=16)
 
 
-def to_url(day, month, year, area):
-    """ Turns the {day, month, year, area} into a url. """
-    complete_url = urlBase \
-        + f"day.php?day={day}&month={month}&year={year}&area={area}"
-    return complete_url
+def load_credentials():
+    """
+    Loads uvic credentials and ground names from disk
+    """
+    try:
+        with open("group_names.json") as F:
+            possible_names = json.load(F)['names']
+    except:
+        print("Error loading group_names.txt")
+        sys.exit(0)
+
+    # Open the credentials file
+    try:
+        with open("login.json") as f:
+            login = json.load(f)
+    except:
+        print("Error loading login.json")
+        sys.exit(0)
 
 
 class Cell(object):
@@ -184,59 +179,7 @@ def scrape(day, month, year, area):
     return existing_bookings
 
 
-def flatten(something):
-    """ Flattens a multidimensional array. """
-    if isinstance(something, (list, tuple, set, range)):
-        for sub in something:
-            yield from flatten(sub)
-    else:
-        yield something
 
-
-def get_available(existing_bookings):
-    """ Search the array of cells and return all that are unbooked. """
-    available = []
-
-    for cell in existing_bookings:
-        if (cell.group_name is None) and (cell not in available):
-            available.append(cell)
-
-    return available
-
-
-def get_within_times(bookings, start=0, end=0):
-    """
-    Return bookings that are within the given times.
-
-    eg. Between 12600 and 18000 would include 12600 <= x < 18000.
-    """
-    return list(filter(lambda x: x.is_between_times(start, end), bookings))
-
-
-def get_unbooked(bookings):
-    """ Filter all rooms already booked. """
-    return list(filter(lambda x: not x.is_booked(), bookings))
-
-
-def get_our_bookings(existing_bookings, possible_names):
-    """
-    Search the array of cells and return all that are booked by us
-
-    TODO: Other groups that happen to use the same name
-    as us will be matched here. Not sure how to address this yet
-    """
-    ours = []
-
-    for cell in existing_bookings:
-        if cell.group_name in possible_names:
-            ours.append(cell)
-
-    return ours
-
-
-def sort_by_preference(bookings):
-    """ Sorts by the duration and room preference. """
-    return sorted(bookings, key=lambda x: (-x.duration, roomPref[x.room_name]))
 
 
 def get_requested_times(offset, start_time, end_time):
