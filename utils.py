@@ -17,6 +17,12 @@ def get_available(existing_bookings):
 
     return available
 
+def sort_by_prefrence(bookings):
+    """
+    Sort rooms by their 'quality' field. This function is pretty simple but can
+    be expaded in the future for more advanced room sorting (if you ever want it...)
+    """
+    return sorted(bookings, key=lambda x: x.room_meta.quality, reverse=True)
 
 def get_within_times(bookings, start=0, end=0):
     """
@@ -48,13 +54,7 @@ def get_our_bookings(existing_bookings, possible_names):
     return ours
 
 
-def sort_by_preference(bookings):
-    """ Sorts by the duration and room preference. """
-    return sorted(bookings, key=lambda x: (-x.duration, roomPref[x.room_name]))
-
-
 def to_uvic_url(day, month, year, area):
     """ Turns the {day, month, year, area} into a url. """
-    complete_url = urlBase \
-        + f"day.php?day={day}&month={month}&year={year}&area={area}"
+    complete_url = f"https://webapp.library.uvic.ca/studyrooms/index.php?view=day&day={day}&month={month}&year={year}&area={area}"
     return complete_url
