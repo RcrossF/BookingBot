@@ -78,26 +78,33 @@ room_map = {
     16: Rooms.ROOM274
 }
 
+class Credentials():
+    login = None
+    group_names = None
 
-def load_credentials():
-    """
-    Loads uvic credentials and ground names from disk
-    """
-    try:
-        with open("group_names.json") as F:
-            possible_names = json.load(F)['names']
-    except:
-        print("Error loading group_names.txt")
-        sys.exit(0)
+    def __init__(self, cred_file, group_names_file):
+        self.login, self.group_names = self.load_credentials(cred_file, group_names_file)
 
-    # Open the credentials file
-    try:
-        with open("login.json") as f:
-            login = json.load(f)
-    except:
-        print("Error loading login.json")
-        sys.exit(0)
+    def load_credentials(self, cred_file, group_names_file):
+        """
+        Loads uvic credentials and ground names from disk
+        """
+        try:
+            with open(group_names_file) as F:
+                possible_names = json.load(F)['names']
+        except:
+            print(f"Error loading {group_names_file}")
+            sys.exit(0)
 
+        # Open the credentials file
+        try:
+            with open(cred_file) as f:
+                login = json.load(f)
+        except:
+            print(f"Error loading {cred_file}")
+            sys.exit(0)
+
+        return login, possible_names
 
 class Cell(object):
     """ Holds booking parameters for a cell in the bookings table. """
@@ -273,69 +280,75 @@ def make_booking(cells, offset):
     date = dt.date.today() + dt.timedelta(days=offset)
     date_str = date.strftime("%Y-%m-%d")
 
+    creds = Credentials('login.json', 'group_names.json')
+    users = creds.login['users']
     for cell in cells:
-        for user in login['users']:
+        for user in users:
             # Create a new session
-            s = requests.Session()
+            with requests.Session() as s:
 
-            # Get the execution token from login page
-            resp = s.get(
-                loginUrl+"?service=https://webapp.library.uvic.ca/studyrooms/edit_entry.php", headers=header)
-            # Parse it with BeautifulSoup
-            soup = BeautifulSoup(resp.text, "lxml")
-            execution_token = soup.find(
-                attrs={"name": "execution"}).attrs['value']
+                # Get the execution token from login page
+                resp = s.get(
+                    loginUrl+"?service=https://webapp.library.uvic.ca/studyrooms/edit_entry.php", headers=header)
+                # Parse it with BeautifulSoup
+                soup = BeautifulSoup(resp.text, "lxml")
+                execution_token = soup.find(
+                    attrs={"name": "execution"}).attrs['value']
 
-            # Log in
-            password = str(base64.standard_b64decode(user['password']))
-            # Remove extra base64 decode characters
-            password = password[2:-1]
-            params = {
-                "username": user['username'],
-                "password": password,
-                "execution": execution_token,
-                "_eventId": "submit"
-            }
-            s.post(loginUrl, params, headers=header)
+                # Log in
+                password = str(base64.standard_b64decode(user['password']))
+                # Remove extra base64 decode characters
+                password = password[2:-1]
+                params = {
+                    "username": user['username'],
+                    "password": password,
+                    "execution": execution_token,
+                    "rememberMe": True,
+                    "_eventId": "submit"
+                }
+                s.post(loginUrl, params, headers=header, verify=False)
 
-            # See if login was successful
-            resp = s.get(urlBase+"edit_entry.php", headers=header)
-            # Parse it with BeautifulSoup
-            soup = BeautifulSoup(resp.text, "lxml")
-            if "Please login to create" in soup:
-                print("Login for user "+user+" failed")
-                continue  # Login failed, move to next account
+                # See if login was successful
+                resp = s.get(urlBase+"edit_entry.php", headers=header)
+                # Parse it with BeautifulSoup
+                soup = BeautifulSoup(resp.text, "lxml")
+                if "Please login to create" in soup:
+                    print("Login for user "+user+" failed")
+                    continue  # Login failed, move to next account
 
-            # Get CSRF token
-            csrf_token = soup.find(
-                attrs={"name": "csrf_token"}).attrs['content']
+                # Get CSRF token
+                csrf_token = soup.find(
+                    attrs={"name": "csrf_token"}).attrs['content']
 
-            # Uvic now uses seconds as the booking time. Go figure...
-            start_seconds = cell.time
-            end_seconds = start_seconds + cell.duration
-            params = {
-                "csrf_token": csrf_token,
-                "create_by": "",
-                "rep_id": 0,
-                "edit_type": "series",
-                "name": random.choice(possible_names),
-                "rooms[]": cell.room_id,
-                "start_date": date_str,
-                "end_date": date_str,
-                "start_seconds": start_seconds,
-                "end_seconds": end_seconds
-            }
+                # Uvic now uses seconds as the booking time. Go figure...
+                start_seconds = cell.time
+                end_seconds = start_seconds + cell.duration
+                params = {
+                    "csrf_token": csrf_token,
+                    "create_by": "", # Check
+                    "rep_id": 0, # Check
+                    "edit_type": "series",
+                    "name": random.choice(creds.group_names),
+                    "rooms[]": cell.room_meta.id,
+                    "start_date": date_str,
+                    "end_date": date_str,
+                    "start_seconds": start_seconds,
+                    "end_seconds": end_seconds
+                }
 
-            # Make the final booking request
-            resp = s.post(urlBase+"edit_entry.php", headers=header)
+                # Make the final booking request
+                resp = s.post(urlBase+"edit_entry.php", headers=header, verify=False)
 
-            # Account maxed, move onto next
-            if "The maximum number of bookings" in resp.text:
-                continue
+                if "University of Victoria - Sign in Service" in resp.text:
+                    raise ConnectionError("Sign in was not remembered")
 
-            # Sucessful booking, break out of user loop
-            cell.print_cell()
-            break
+                # Account maxed, move onto next
+                if "The maximum number of bookings" in resp.text:
+                    continue
+
+                # Sucessful booking, break out of user loop
+                cell.print_cell()
+                break
 
 
 offset = 1
