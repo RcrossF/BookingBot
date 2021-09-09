@@ -1,5 +1,5 @@
 #Run this at midnight to secure those primo rooms
-import bookV2
+from bookV2 import book
 import datetime as dt
 import sys
 
@@ -23,14 +23,14 @@ today = dt.date.today()
 
 # else:
 #     sys.exit(0)
-startTime = dt.time(14,00)
-endTime = dt.time(17,00)
+startTime = dt.timedelta(hours=13, minutes=30)
+endTime = dt.timedelta(hours=15, minutes=30)
 
-for i in range(1,5): # Run through all the floors
-    result = book.scrapeAndBook(4,startTime,endTime,i,roompref) #Book 1 week in the future
 
+for i in range(1,4): # Run through all the floors
+    result = book(7, startTime.total_seconds(), endTime.total_seconds())
     if result == "No rooms found":
-        if i == 4: #If we're on the last floor and nothing was found
+        if i == 3: #If we're on the last floor and nothing was found
             print("Nothing Found")
         continue
     else:

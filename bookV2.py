@@ -22,12 +22,12 @@ header = {
     'Accept-Encoding': 'gzip, deflate, br',
     'DNT': '1',
     'Connection': 'keep-alive',
-    'Origin': 'https://webapp.library.uvic.ca',
-    'Content-Type': 'application/x-www-form-urlencoded',
+    #'Origin': 'https://webapp.library.uvic.ca',
+   # 'Content-Type': 'application/x-www-form-urlencoded',
     'Sec-Fetch-Mode': 'navigate',
     'Sec-Fetch-Site': 'same-origin',
     'Sec-Fetch-Dest': 'document',
-    'Referer': 'https://webapp.library.uvic.ca/studyrooms/edit_entry.php?view=day&year=2021&month=9&day=8&area=1&room=4&hour=11&minute=30'
+  #  'Referer': 'https://webapp.library.uvic.ca/studyrooms/edit_entry.php?view=day&year=2021&month=9&day=16&area=1&room=4&hour=13&minute=30'
     
 }
 
@@ -148,7 +148,10 @@ class Cell(object):
                     f"{self.time} for "
                     f"{self.duration} seconds.")
         else:
-            return f"{self.room_meta.name} is unbooked at {self.time} for {self.duration} seconds." 
+            human_time = dt.timedelta(seconds=self.time)
+            hour = human_time.seconds // 3600
+            minute = (human_time.seconds//60) % 60
+            return f"{self.room_meta.name} is unbooked at {hour}:{minute} for {self.duration / 3600} hours." 
 
 
 def scrape(day, month, year, area):
@@ -287,6 +290,8 @@ def make_booking(cells, offset):
     date = dt.date.today() + dt.timedelta(days=offset)
     date_str = date.strftime("%Y-%m-%d")
 
+    print(f"Booking for {date_str}")
+
     creds = Credentials('login.json', 'group_names.json')
     users = creds.login['users']
     for cell in cells:
@@ -306,23 +311,24 @@ def make_booking(cells, offset):
                 password = str(base64.standard_b64decode(user['password']))
                 # Remove extra base64 decode characters
                 password = password[2:-1]
-                params = {
+                login_params = {
                     "username": user['username'],
                     "password": password,
                     "execution": execution_token,
                     "rememberMe": True,
                     "_eventId": "submit"
                 }
-                s.post(loginUrl+"?service=https://webapp.library.uvic.ca/studyrooms/edit_entry.php?year={date.year}&month={date.month}&day={date.day}&area={cell.area}", params, headers=header, verify=False)
-
+                lg = s.post(loginUrl+f"?service=https://webapp.library.uvic.ca/studyrooms/edit_entry.php?year={date.year}&month={date.month}&day={date.day}&area={cell.area}&room={cell.room_meta.id}", login_params, headers=header, verify=False)
+                #s.post(loginUrl+"?service=https://webapp.library.uvic.ca/studyrooms/edit_entry_handler.php", params, headers=header, verify=False)
                 #See if login was successful
-                resp = s.get("https://webapp.library.uvic.ca/studyrooms/edit_entry.php?year={date.year}&month={date.month}&day={date.day}&area={cell.area}", headers=header)
-                #Parse it with BeautifulSoup
-                soup = BeautifulSoup(resp.text, "lxml")
-                if "Please login to create" in soup:
+                resp = s.get(f"https://webapp.library.uvic.ca/studyrooms/edit_entry.php?year={date.year}&month={date.month}&day={date.day}&area={cell.area}", headers=header, verify=False)
+    
+                if "Please login to create" in resp.text:
                    print("Login for user "+user+" failed")
                    continue  # Login failed, move to next account
 
+                #Parse it with BeautifulSoup
+                soup = BeautifulSoup(resp.text, "lxml")
                 # Get CSRF token
                 csrf_token = soup.find(
                     attrs={"name": "csrf_token"}).attrs['content']
@@ -332,7 +338,7 @@ def make_booking(cells, offset):
                 end_seconds = start_seconds + cell.duration
                 params = {
                     "csrf_token": csrf_token,
-                    'returl': f"https://webapp.library.uvic.ca/studyrooms/index.php?year={date.year}&month={date.month}&day={date.day}&area={cell.area}&room={cell.room_meta.id}",
+                    'returl': f"https://webapp.library.uvic.ca/studyrooms/index.php?year={date.year}&month={date.month}&day={date.day}&area={cell.area}",
                     'create_by': user['username'],
                     "rep_id": 0,
                     "edit_type": "series",
@@ -344,9 +350,9 @@ def make_booking(cells, offset):
                 }
 
                 # Make the final booking request
-                resp = s.post(urlBase+"edit_entry_handler.php", params, headers=header, verify=False)
+                resp = s.post(urlBase+"edit_entry_handler.php", params, headers=header, verify=False, allow_redirects=False)
 
-                if "University of Victoria - Sign in Service" in resp.text:
+                if "Please login" in resp.text:
                     raise ConnectionError("Signed out, something is probably wrong with the booking request")
 
                 # Account maxed, move onto next
@@ -357,6 +363,12 @@ def make_booking(cells, offset):
                 print(cell)
                 break
 
-
-offset = 1
-make_booking(get_requested_times(offset, 43200, 52200), offset)
+def book(days_in_future, start_time, end_time):
+    """
+    Helper function to make booking a lil easier.
+    Params:
+    (int) days in future to book
+    (int) Start time of desired booking, in seconds since midnight (i know this is stupid)
+    (int) End time of desired booking, in seconds since midnight
+    """
+    return make_booking(get_requested_times(days_in_future, start_time, end_time), days_in_future)
