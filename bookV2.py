@@ -16,12 +16,19 @@ from utils import flatten, get_available, get_within_times, get_our_bookings, ge
 loginUrl = "https://www.uvic.ca/cas/login"
 urlBase = "https://webapp.library.uvic.ca/studyrooms/"
 header = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:60.0) Gecko/20100101 Firefox/60.0",
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0",
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.5',
-    'Accept-Encoding': 'gzip',
+    'Accept-Encoding': 'gzip, deflate, br',
     'DNT': '1',
-    'Connection': 'close'
+    'Connection': 'keep-alive',
+    'Origin': 'https://webapp.library.uvic.ca',
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'same-origin',
+    'Sec-Fetch-Dest': 'document',
+    'Referer': 'https://webapp.library.uvic.ca/studyrooms/edit_entry.php?view=day&year=2021&month=9&day=8&area=1&room=4&hour=11&minute=30'
+    
 }
 
 class Floors(Enum):
@@ -289,7 +296,7 @@ def make_booking(cells, offset):
 
                 # Get the execution token from login page
                 resp = s.get(
-                    loginUrl+"?service=https://webapp.library.uvic.ca/studyrooms/edit_entry.php", headers=header)
+                    loginUrl+f"?service=https://webapp.library.uvic.ca/studyrooms/edit_entry_handler.php", headers=header)
                 # Parse it with BeautifulSoup
                 soup = BeautifulSoup(resp.text, "lxml")
                 execution_token = soup.find(
@@ -306,15 +313,15 @@ def make_booking(cells, offset):
                     "rememberMe": True,
                     "_eventId": "submit"
                 }
-                s.post(loginUrl, params, headers=header, verify=False)
+                s.post(loginUrl+"?service=https://webapp.library.uvic.ca/studyrooms/edit_entry.php?year={date.year}&month={date.month}&day={date.day}&area={cell.area}", params, headers=header, verify=False)
 
-                # See if login was successful
-                resp = s.get(urlBase+"edit_entry.php", headers=header)
-                # Parse it with BeautifulSoup
+                #See if login was successful
+                resp = s.get("https://webapp.library.uvic.ca/studyrooms/edit_entry.php?year={date.year}&month={date.month}&day={date.day}&area={cell.area}", headers=header)
+                #Parse it with BeautifulSoup
                 soup = BeautifulSoup(resp.text, "lxml")
                 if "Please login to create" in soup:
-                    print("Login for user "+user+" failed")
-                    continue  # Login failed, move to next account
+                   print("Login for user "+user+" failed")
+                   continue  # Login failed, move to next account
 
                 # Get CSRF token
                 csrf_token = soup.find(
@@ -325,29 +332,29 @@ def make_booking(cells, offset):
                 end_seconds = start_seconds + cell.duration
                 params = {
                     "csrf_token": csrf_token,
-                    "create_by": "", # Check
-                    "rep_id": 0, # Check
+                    'returl': f"https://webapp.library.uvic.ca/studyrooms/index.php?year={date.year}&month={date.month}&day={date.day}&area={cell.area}&room={cell.room_meta.id}",
+                    'create_by': user['username'],
+                    "rep_id": 0,
                     "edit_type": "series",
                     "name": random.choice(creds.group_names),
                     "rooms[]": cell.room_meta.id,
                     "start_date": date_str,
-                    "end_date": date_str,
                     "start_seconds": start_seconds,
                     "end_seconds": end_seconds
                 }
 
                 # Make the final booking request
-                resp = s.post(urlBase+"edit_entry.php", headers=header, verify=False)
+                resp = s.post(urlBase+"edit_entry_handler.php", params, headers=header, verify=False)
 
                 if "University of Victoria - Sign in Service" in resp.text:
-                    raise ConnectionError("Sign in was not remembered")
+                    raise ConnectionError("Signed out, something is probably wrong with the booking request")
 
                 # Account maxed, move onto next
                 if "The maximum number of bookings" in resp.text:
                     continue
 
                 # Sucessful booking, break out of user loop
-                cell.print_cell()
+                print(cell)
                 break
 
 

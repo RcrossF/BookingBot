@@ -1,10 +1,9 @@
 #Run this at midnight to secure those primo rooms
-import book
+import bookV2
 import datetime as dt
 import sys
 
 today = dt.date.today()
-roompref = [15,14,13,12,16,11,10,9,8]
 
 # if today.weekday() == 1: #Tue
 #     startTime = dt.time(13,30)
