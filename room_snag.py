@@ -28,7 +28,7 @@ endTime = dt.timedelta(hours=15, minutes=30)
 
 
 for i in range(1,4): # Run through all the floors
-    result = book(7, startTime.total_seconds(), endTime.total_seconds())
+    result = book(0, startTime.total_seconds(), endTime.total_seconds())
     if result == "No rooms found":
         if i == 3: #If we're on the last floor and nothing was found
             print("Nothing Found")

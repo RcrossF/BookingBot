@@ -23,10 +23,10 @@ header = {
     'DNT': '1',
     'Connection': 'keep-alive',
     #'Origin': 'https://webapp.library.uvic.ca',
-   # 'Content-Type': 'application/x-www-form-urlencoded',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'same-origin',
-    'Sec-Fetch-Dest': 'document',
+    'Content-Type': 'application/x-www-form-urlencoded',
+   # 'Sec-Fetch-Mode': 'navigate',
+   # 'Sec-Fetch-Site': 'same-origin',
+   # 'Sec-Fetch-Dest': 'document',
   #  'Referer': 'https://webapp.library.uvic.ca/studyrooms/edit_entry.php?view=day&year=2021&month=9&day=16&area=1&room=4&hour=13&minute=30'
     
 }
@@ -182,7 +182,7 @@ def scrape(day, month, year, area):
 
 
         row_cols = tr.find_all("td")
-        for i, id in zip(range(1, len(row_cols)), room_ids):
+        for raw_cell, id in zip(row_cols, room_ids):
             """
             In each <td> tag:
             - td_class tells you if the room is booked or unbooked.
@@ -190,17 +190,15 @@ def scrape(day, month, year, area):
             - link in the <a> tag contains the date.
             - div_class tells you the duration and booking id.
             """
-            raw_cell = row_cols[i]
-
             room = room_map[id].value
             # Room unbooked
-            if raw_cell.attrs["class"] == ["new"]:
+            if "new" in raw_cell.attrs["class"]:
                 duration = 1800
                 group_name = None
                 booking_id = None
                 
 
-            elif raw_cell.attrs["class"] == ["booked"]:
+            elif "booked" in raw_cell.attrs["class"]:
                 raw_cell_div = raw_cell.find("div")
                 duration = 1800 # Default booking is 30 minutes
                 if 'rowspan' in raw_cell.attrs:
@@ -212,7 +210,7 @@ def scrape(day, month, year, area):
             else:
                 raise ValueError("Unexpected cell")
 
-            # Convert room name to room enum identifier, eg Room 113a -> ROOM113A
+            
             existing_bookings.append(
                 Cell(
                     room,
@@ -264,7 +262,7 @@ def get_requested_times(offset, start_time, end_time):
 
     # Merge adjacent cells, assumes all cells have a 30min duration
     i = len(good_rooms) - 1
-    while i > 1:
+    while i >= 1:
         prev_h = int(good_rooms[i-1].time / 3600)
         prev_m = int(modf((good_rooms[i-1].time / 3600))[0] * 60)
         cur_h = int(good_rooms[i].time / 3600)
@@ -301,7 +299,7 @@ def make_booking(cells, offset):
 
                 # Get the execution token from login page
                 resp = s.get(
-                    loginUrl+f"?service=https://webapp.library.uvic.ca/studyrooms/edit_entry_handler.php", headers=header)
+                    loginUrl+f"?service=https://webapp.library.uvic.ca/studyrooms/edit_entry.php", headers=header)
                 # Parse it with BeautifulSoup
                 soup = BeautifulSoup(resp.text, "lxml")
                 execution_token = soup.find(
@@ -324,7 +322,7 @@ def make_booking(cells, offset):
                 resp = s.get(f"https://webapp.library.uvic.ca/studyrooms/edit_entry.php?year={date.year}&month={date.month}&day={date.day}&area={cell.area}", headers=header, verify=False)
     
                 if "Please login to create" in resp.text:
-                   print("Login for user "+user+" failed")
+                   print(f"Login for user {user} failed")
                    continue  # Login failed, move to next account
 
                 #Parse it with BeautifulSoup
