@@ -23,12 +23,12 @@ today = dt.date.today()
 
 # else:
 #     sys.exit(0)
-startTime = dt.timedelta(hours=13, minutes=30)
+startTime = dt.timedelta(hours=15, minutes=0)
 endTime = dt.timedelta(hours=15, minutes=30)
 
 
 for i in range(1,4): # Run through all the floors
-    result = book(0, startTime.total_seconds(), endTime.total_seconds())
+    result = book(6, startTime.total_seconds(), endTime.total_seconds())
     if result == "No rooms found":
         if i == 3: #If we're on the last floor and nothing was found
             print("Nothing Found")

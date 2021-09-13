@@ -52,7 +52,7 @@ class Rooms(Enum):
     ROOM113A = Room(quality=5, floor=Floors.FIRST, name='Room 113a', id=1)
     ROOM113B = Room(quality=4, floor=Floors.FIRST, name='Room 113b', id=2)
     ROOM113C = Room(quality=3, floor=Floors.FIRST, name='Room 113c', id=3)
-    ROOM113D = Room(quality=8, floor=Floors.FIRST, name='Room 113c', id=4)
+    ROOM113D = Room(quality=8, floor=Floors.FIRST, name='Room 113d', id=4)
     ROOM131 = Room(quality=8, floor=Floors.FIRST, name='Room 131', id=5)
     ROOMA103 = Room(quality=6, floor=Floors.FIRST, name='Room A103', id=6)
     ROOMA105 = Room(quality=7, floor=Floors.FIRST, name='Room A105', id=7)
@@ -182,7 +182,7 @@ def scrape(day, month, year, area):
 
 
         row_cols = tr.find_all("td")
-        for raw_cell, id in zip(row_cols, room_ids):
+        for raw_cell, room_id in zip(row_cols, room_ids):
             """
             In each <td> tag:
             - td_class tells you if the room is booked or unbooked.
@@ -190,26 +190,29 @@ def scrape(day, month, year, area):
             - link in the <a> tag contains the date.
             - div_class tells you the duration and booking id.
             """
-            room = room_map[id].value
+            duration = 1800 # Default booking is 30 minutes
+            if 'rowspan' in raw_cell.attrs:
+                duration = int(raw_cell.attrs["rowspan"]) * 1800
+
             # Room unbooked
             if "new" in raw_cell.attrs["class"]:
-                duration = 1800
+                # Room id can be affected by rowspan so update it here
+                room_id = int(re.search(r'(?<=room\=)\d', raw_cell.find('a').attrs['href']).group())
                 group_name = None
                 booking_id = None
                 
-
+            
+            # TODO: Booked rooms can take the wrong room ID witht the current method. Find something better
             elif "booked" in raw_cell.attrs["class"]:
-                raw_cell_div = raw_cell.find("div")
-                duration = 1800 # Default booking is 30 minutes
-                if 'rowspan' in raw_cell.attrs:
-                    duration = int(raw_cell.attrs["rowspan"]) * 1800
-
+                continue
                 group_name = raw_cell.text.strip()
+                raw_cell_div = raw_cell.find("div")
                 booking_id = int(raw_cell_div.find('a').attrs["data-id"])
 
             else:
                 raise ValueError("Unexpected cell")
 
+            room = room_map[room_id].value
             
             existing_bookings.append(
                 Cell(
@@ -284,6 +287,9 @@ def make_booking(cells, offset):
     """
     Tries to make a booking for each cell, 'offset' days in the future.
     """
+    if len(cells) == 0:
+        return "No rooms found"
+        
     # Get however many days in the future
     date = dt.date.today() + dt.timedelta(days=offset)
     date_str = date.strftime("%Y-%m-%d")
