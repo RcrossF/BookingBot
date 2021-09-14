@@ -6,8 +6,9 @@ from bookV2 import book
 import datetime as dt
 import sys
 import json
+import pytz
 
-target_day = dt.date.today() - dt.timedelta(days=1)
+target_day = dt.datetime.now(pytz.timezone('US/Pacific')).date() - dt.timedelta(days=1)
 weekday = target_day.strftime('%A')
 
 try:

@@ -22,13 +22,7 @@ header = {
     'Accept-Encoding': 'gzip, deflate, br',
     'DNT': '1',
     'Connection': 'keep-alive',
-    #'Origin': 'https://webapp.library.uvic.ca',
-    'Content-Type': 'application/x-www-form-urlencoded',
-   # 'Sec-Fetch-Mode': 'navigate',
-   # 'Sec-Fetch-Site': 'same-origin',
-   # 'Sec-Fetch-Dest': 'document',
-  #  'Referer': 'https://webapp.library.uvic.ca/studyrooms/edit_entry.php?view=day&year=2021&month=9&day=16&area=1&room=4&hour=13&minute=30'
-    
+    'Content-Type': 'application/x-www-form-urlencoded'
 }
 
 class Floors(Enum):
@@ -166,7 +160,6 @@ def scrape(day, month, year, area):
     soup = BeautifulSoup(resp.text, "lxml")
 
     # Get a list of all tables and pick out the one we need
-    #   Our table in interest is the fourth table
     bookings_table = soup.find("table", {'id': 'day_main'})
     bookings_table_rows = bookings_table.find_all("tr")
 
@@ -202,7 +195,8 @@ def scrape(day, month, year, area):
                 booking_id = None
                 
             
-            # TODO: Booked rooms can take the wrong room ID witht the current method. Find something better
+            # TODO: Booked rooms can take the wrong room ID with the current method. Find something better.
+            # This is not needed for room booking but would be nice for additional functionality
             elif "booked" in raw_cell.attrs["class"]:
                 continue
                 group_name = raw_cell.text.strip()
