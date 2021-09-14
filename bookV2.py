@@ -238,7 +238,7 @@ def get_requested_times(offset, start_time, end_time):
     day = date.day
 
     rooms = []
-    # Iterate through every floor except basement
+    # Iterate through every floor except the basement (yuck)
     for i in [1, 3]:
         rooms += scrape(day, month, year, i)
 
