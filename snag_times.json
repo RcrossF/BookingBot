@@ -1,0 +1,24 @@
+{
+    "Monday": [{
+        "bookingStart": "10:00",
+        "bookingEnd": "13:00"
+    }],
+    "Tuesday": [{
+        "bookingStart": "14:30",
+        "bookingEnd": "16:30"
+    }],
+    "Wednesday": [{
+        "bookingStart": "16:30",
+        "bookingEnd": "17:30"
+    }],
+    "Thursday": [{
+        "bookingStart": "10:00",
+        "bookingEnd": "13:00"
+    }],
+    "Friday": [{
+        "bookingStart": "13:30",
+        "bookingEnd": "16:30"
+    }],
+    "Saturday": [],
+    "Sunday": []
+}
