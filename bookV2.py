@@ -5,7 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import base64
-from numpy import random
+import random
 from enum import Enum
 from dataclasses import dataclass
 import pytz
@@ -190,7 +190,7 @@ def scrape(day, month, year, area):
             # Room unbooked
             if "new" in raw_cell.attrs["class"]:
                 # Room id can be affected by rowspan so update it here
-                room_id = int(re.search(r'(?<=room\=)\d', raw_cell.find('a').attrs['href']).group())
+                room_id = int(re.search(r'(?<=room\=)\d+', raw_cell.find('a').attrs['href']).group())
                 group_name = None
                 booking_id = None
                 
@@ -244,20 +244,21 @@ def get_requested_times(offset, start_time, end_time):
 
     # Filter any room not in the time we want
     unbooked_rooms = get_unbooked(rooms)
-    requested_times = get_within_times(unbooked_rooms, start_time, end_time)
-    good_rooms = sort_by_prefrence(requested_times)
+    rooms_on_time = get_within_times(unbooked_rooms, start_time, end_time)
 
-    # Drop duplicate times
+
+    # Drop overlapping times
     times = []
     i = 0
-    while i < len(good_rooms):
-        if good_rooms[i].time not in times:
-            times.append(good_rooms[i].time)
+    while i < len(rooms_on_time):
+        if rooms_on_time[i].time not in times:
+            times.append(rooms_on_time[i].time)
             i += 1
         else:
-            del(good_rooms[i])
+            del(rooms_on_time[i])
 
     # Merge adjacent cells, assumes all cells have a 30min duration
+    good_rooms = sorted(rooms_on_time, key=lambda x: (x.room_meta.id, x.time))
     i = len(good_rooms) - 1
     while i >= 1:
         prev_h = int(good_rooms[i-1].time / 3600)
@@ -266,15 +267,17 @@ def get_requested_times(offset, start_time, end_time):
         cur_m = int(modf((good_rooms[i].time / 3600))[0] * 60)
 
         if good_rooms[i-1].room_meta.id == good_rooms[i].room_meta.id:
-            if (prev_h == cur_h or (abs(prev_h - cur_h) == 1 and prev_m == 30 and cur_m == 0)) and good_rooms[i-1].duration < 7200:
+            if (prev_h == cur_h or (abs(prev_h - cur_h) == 1 and prev_m == 30 and cur_m == 0) and good_rooms[i-1].duration < 7200):
                 good_rooms[i-1].duration += good_rooms[i].duration
                 del(good_rooms[i])
-                i = len(good_rooms) - 1
+                i -= 1
                 continue
 
         i -= 1
 
-    return good_rooms
+    good_rooms_sorted = sort_by_prefrence(good_rooms)
+
+    return good_rooms_sorted
 
 
 def make_booking(cells, offset):

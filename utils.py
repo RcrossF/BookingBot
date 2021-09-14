@@ -19,10 +19,10 @@ def get_available(existing_bookings):
 
 def sort_by_prefrence(bookings):
     """
-    Sort rooms by their 'quality' field. This function is pretty simple but can
+    Sort rooms by their duration and then quality field. This function is pretty simple but can
     be expaded in the future for more advanced room sorting (if you ever want it...)
     """
-    return sorted(bookings, key=lambda x: x.room_meta.quality, reverse=True)
+    return sorted(bookings, key=lambda x: (x.duration, x.room_meta.quality), reverse=True)
 
 def get_within_times(bookings, start=0, end=0):
     """
