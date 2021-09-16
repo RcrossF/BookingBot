@@ -288,7 +288,7 @@ def make_booking(cells, offset):
         return "No rooms found"
         
     # Get however many days in the future
-    date = dt.date.today() + dt.timedelta(days=offset)
+    date =  dt.datetime.now(pytz.timezone('US/Pacific')).date() + dt.timedelta(days=offset)
     date_str = date.strftime("%Y-%m-%d")
 
     print(f"Booking for {date_str}")
