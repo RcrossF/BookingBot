@@ -8,8 +8,8 @@
         "bookingEnd": "16:30"
     }],
     "Wednesday": [{
-        "bookingStart": "16:30",
-        "bookingEnd": "17:30"
+        "bookingStart": "14:30",
+        "bookingEnd": "16:30"
     }],
     "Thursday": [{
         "bookingStart": "10:00",
